@@ -115,13 +115,12 @@ for binary in $BINARY_LIST
                                     mkdir -p "$lib_dst_dir_pth"
                                 if [ -L "$lib_src_pth" ]
                                         then
-                                            lib_src_dirname_name="$(basename "$(dirname "$lib_src_pth" 2>/dev/null)" 2>/dev/null)"
                                             lib_src_real_name="$(basename "$lib_src_real_pth" 2>/dev/null)"
                                             [ ! -f "$lib_dst_dir_pth/$lib_src_real_name" ] && \
                                                 cp -f "$lib_src_real_pth" "$lib_dst_dir_pth/" && \
                                             [ "$STRIP" == 1 ] && \
                                                 strip -s -R .comment --strip-unneeded "$lib_dst_dir_pth/$lib_src_real_name" 2>/dev/null
-                                            [ "$lib_src_dirname_real_name" == "$lib_src_dirname_name" ] && \
+                                            [ "$lib_src_name" != "$lib_src_real_name" ] && \
                                             (cd "$lib_dst_dir_pth" && \
                                                 [ ! -L "$lib_src_name" ] && \
                                                     ln -sf "$lib_src_real_name" "$lib_src_name")
