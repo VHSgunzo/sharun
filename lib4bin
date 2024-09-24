@@ -55,7 +55,7 @@ for binary in $BINARY_LIST
         bin_dir_pth="${binary_dst_pth}/bin"
         if [[ -n "$(file "$binary_src_pth" 2>/dev/null|grep 'ELF'|grep -o 'executable')" ]]
             then
-                # or? strace -e trace=openat "$binary_src_pth"|& grep '/lib.*\.so'|grep -v ENOENT|awk '{print$2}'|sed 's|^.||g;s|..$||g'|sort -u
+                # or? strace -e trace=openat "$binary_src_pth"|& grep '/lib.*\.so'|grep -v ENOENT|awk '{print$2}'|sed 's|^.||g;s|..$||g'|sort -u|xargs -I {} cp -f {} shared/lib/
                 LIBS="$((ldd "$binary_src_pth" 2>/dev/null && \
                         ldconfig -p 2>/dev/null|grep -E 'libnss_files.so.2|libnss_dns.so.2|libpthread.so.0'\
                         |grep -v '/lib32')|grep '/lib'|cut -d'>' -f2|sed 's| (.*)||g')"
@@ -76,6 +76,13 @@ for binary in $BINARY_LIST
                                     else
                                         [ ! -f "$bin_dir_pth/$binary_name" ] && \
                                             cp -f "$binary_src_pth" "$bin_dir_pth/"
+                                fi
+                                patch_needed_libs="$(patchelf --print-needed "$binary_src_pth" 2>/dev/null|grep '^/')"
+                                if [ -n "$patch_needed_libs" ]
+                                    then
+                                        for lib in $patch_needed_libs
+                                            do patchelf --replace-needed "$lib" "$(basename "$lib")" "$bin_dir_pth/$binary_name"
+                                        done
                                 fi
                         fi
                         for lib in $LIBS
