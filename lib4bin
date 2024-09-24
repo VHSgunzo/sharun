@@ -110,7 +110,6 @@ for binary in $BINARY_LIST
                                 grep -qE '/lib32|/i386-linux-gnu'<<<"$lib_src_dirname_pth" && \
                                 lib_dst_dir_pth="${binary_dst_pth}/lib32"||\
                                 lib_dst_dir_pth="${binary_dst_pth}/lib"
-                                lib_src_dirname_real_name="$(basename "$lib_src_dirname_pth")"
                                 [ ! -d "$lib_dst_dir_pth" ] && \
                                     mkdir -p "$lib_dst_dir_pth"
                                 if [ -L "$lib_src_pth" ]
