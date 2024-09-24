@@ -1,0 +1,23 @@
+[package]
+name = "sharun"
+version = "0.0.1"
+readme = "README.md"
+license = "MIT"
+repository = "https://github.com/VHSgunzo/sharun"
+description = "Run shared binary everywhere"
+edition = "2021"
+
+[profile.release]
+lto = true
+panic = "abort"
+opt-level = "z"
+strip = "symbols"
+debug  = false
+codegen-units = 1
+
+[profile.dev]
+panic = "abort"
+opt-level = 0
+
+[dependencies]
+userland-execve = "*"
