@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# deps: apt update && apt install bash file binutils patchelf -y
-# deps: apk add bash file binutils patchelf
-# deps: dnf install bash file binutils patchelf -y
-# deps: pacman -Sy bash file binutils patchelf --noconfirm
-# deps: xbps-install -Sy bash file binutils patchelf
+# deps: apt update && apt install bash file binutils patchelf findutils -y
+# deps: apk add bash file binutils patchelf findutils
+# deps: dnf install bash file binutils patchelf findutils -y
+# deps: pacman -Sy bash file binutils patchelf findutils --noconfirm
+# deps: xbps-install -Sy bash file binutils patchelf findutils
 
 RED='\033[1;91m'
 BLUE='\033[1;94m'
