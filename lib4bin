@@ -33,7 +33,7 @@ try_set_rpath() {
         patchelf --set-rpath '$ORIGIN/../lib:$ORIGIN/../lib32' "$1"
 }
 
-print_needed() { patchelf --print-needed "$1" ; }
+print_needed() { patchelf --print-needed "$1" 2>/dev/null ; }
 
 ldd_libs() {
     ldd "$1" 2>/dev/null|grep '/lib'|cut -d'>' -f2|sed 's| (.*)||g'|sed 's|^[[:space:]]*||g'
