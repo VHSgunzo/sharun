@@ -117,8 +117,9 @@ for binary in $BINARY_LIST
                                 binary_dst_pth="$bin_dir_pth/$binary_name"
                                 if [ -n "$binary_real_name" ]
                                     then
-                                        [ ! -L "$binary_dst_pth" ] && \
-                                            cp -f "$binary_src_pth" "$bin_dir_pth/" && \
+                                        [ ! -f "$bin_dir_pth/$binary_real_name" ] && \
+                                            cp -f "$binary_src_pth" "$bin_dir_pth/"
+                                        [[ "$binary_name" != "$binary_real_name" && ! -L "$binary_dst_pth" ]] && \
                                             (cd "$bin_dir_pth" && \
                                                 ln -sf "$binary_real_name" "$binary_name")
                                     else
@@ -141,8 +142,8 @@ for binary in $BINARY_LIST
                                 fi
                                 lib_src_name="$(basename "$lib_src_pth" 2>/dev/null)"
                                 grep -qE '/lib32|/i386-linux-gnu'<<<"$lib_src_dirname_pth" && \
-                                lib_dst_dir_pth="${dst_dir_pth}/lib32"||\
-                                lib_dst_dir_pth="${dst_dir_pth}/lib"
+                                    lib_dst_dir_pth="${dst_dir_pth}/lib32"||\
+                                    lib_dst_dir_pth="${dst_dir_pth}/lib"
                                 lib_dst_pth="$lib_dst_dir_pth/$lib_src_name"
                                 [ ! -d "$lib_dst_dir_pth" ] && \
                                     mkdir -p "$lib_dst_dir_pth"
@@ -151,10 +152,10 @@ for binary in $BINARY_LIST
                                             lib_src_real_name="$(basename "$lib_src_real_pth" 2>/dev/null)"
                                             [ ! -f "$lib_dst_dir_pth/$lib_src_real_name" ] && \
                                                 cp -f "$lib_src_real_pth" "$lib_dst_dir_pth/"
-                                            [ "$lib_src_name" != "$lib_src_real_name" ] && \
-                                            (cd "$lib_dst_dir_pth" && \
-                                                [ ! -L "$lib_src_name" ] && \
-                                                    ln -sf "$lib_src_real_name" "$lib_src_name")
+                                            [[ "$lib_src_name" != "$lib_src_real_name" && ! -L "$lib_dst_pth" ]] && \
+                                                (cd "$lib_dst_dir_pth" && \
+                                                    [ ! -L "$lib_src_name" ] && \
+                                                        ln -sf "$lib_src_real_name" "$lib_src_name")
                                         else
                                             [ ! -f "$lib_dst_pth" ] && \
                                                 cp -f "$lib_src_pth" "$lib_dst_dir_pth/"
