@@ -43,7 +43,7 @@ get_libs() {
     [ -n "$2" ] && local needed_libs="$2"||\
     local needed_libs="$(print_needed "$1")"
     local libs="$(([ -z "$needed_libs" ]||\
-        grep -E "$(tr '\n' '|'<<<"$needed_libs")libnss_files.so.2|libnss_dns.so.2"<<<"$ALL_LIBS" ; \
+        grep -E "$(tr '\n' '|'<<<"$needed_libs"|sed 's|.$||')"<<<"$ALL_LIBS" ; \
         ldd_libs "$1")|sort -u)"
     [ -n "$IS_ELF32" ] && \
     local libs="$(grep -vE '/lib/|/lib64/|/x86_64-linux-gnu/'<<<"$libs")"||\
