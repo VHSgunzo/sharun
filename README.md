@@ -1,5 +1,5 @@
 # sharun
-Run dynamically linked binaries everywhere
+Run dynamically linked binaries everywhere (musl and glibc are supported)
 
 ## To get started:
 * **Download the latest revision**
