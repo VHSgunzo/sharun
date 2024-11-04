@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches:
+    - action
+    tags:
+    - '*'
+
+jobs:
+  build_and_release:
+    name: sharun
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Setup toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          override: true
+          target: x86_64-unknown-linux-musl
+
+      - name: Install deps
+        run: >
+          sudo bash -c 'apt update && apt install upx binutils -y';
+          rustup component add rust-src --toolchain nightly;
+          cargo install cross;
+
+      - name: Build x86_64
+        run: >
+          cargo clean;
+          cargo build --release;
+          mv target/x86_64-unknown-linux-musl/release/sharun sharun-x86_64;
+
+      - name: Build aarch64
+        run: >
+          cargo clean;
+          cross build --release --target aarch64-unknown-linux-musl;
+          mv target/aarch64-unknown-linux-musl/release/sharun sharun-aarch64;
+
+      - name: Strip
+        run: >
+          strip -s -R .comment -R .gnu.version --strip-unneeded sharun-x86_64;
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: sharun*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
