@@ -1,10 +1,10 @@
 [package]
 name = "sharun"
-version = "0.0.1"
+version = "0.0.2"
 readme = "README.md"
 license = "MIT"
 repository = "https://github.com/VHSgunzo/sharun"
-description = "Run shared binary everywhere"
+description = "Run dynamically linked binaries everywhere"
 edition = "2021"
 
 [profile.release]
@@ -20,4 +20,5 @@ panic = "abort"
 opt-level = 0
 
 [dependencies]
-userland-execve = "*"
+walkdir = "2.5.0"
+userland-execve = "0.2.0"

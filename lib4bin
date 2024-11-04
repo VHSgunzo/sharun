@@ -77,7 +77,7 @@ if [ ! -n "$BINARY_LIST" ]
 fi
 [[ "$ONE_DIR" == 1 && ! -n "$DST_DIR_PATH" ]] && \
     DST_DIR_PATH="shared"
-ALL_LIBS="$(find \
+ALL_LIBS="$(find -type f \
     /usr/lib /usr/libexec /usr/lib64 \
     /usr/lib32 /lib /lib64 /lib32 \
     -name '*.so*' 2>/dev/null|sort -u \
@@ -104,7 +104,7 @@ for binary in $BINARY_LIST
         IS_ELF32="$(grep -o 'ELF 32-bit'<<<"$FILE_INFO")"
         if [[ -n "$(grep 'ELF'<<<"$FILE_INFO"|grep -o 'executable')" ]]
             then
-                # strace -e trace=openat "$binary_src_pth"|& grep '/lib.*\.so'|grep -v ENOENT|awk '{print$2}'|sed 's|^.||g;s|..$||g'|sort -u|xargs -I {} cp -f {} shared/lib/
+                # strace -f -e trace=openat "$binary_src_pth"|& grep '/lib.*\.so'|grep -v ENOENT|awk '{print$2}'|sed 's|^.||g;s|..$||g'|sort -u|xargs -I {} cp -f {} shared/lib/
                 needed_libs="$(print_needed "$binary_src_pth")"
                 LIBS="$(get_libs "$binary_src_pth" "$needed_libs")"
                 if [[ -n "$LIBS" || "$STATIC_BINARY" == 1 ]]
@@ -142,8 +142,9 @@ for binary in $BINARY_LIST
                                 fi
                                 lib_src_name="$(basename "$lib_src_pth" 2>/dev/null)"
                                 grep -qE '/lib32|/i386-linux-gnu'<<<"$lib_src_dirname_pth" && \
-                                    lib_dst_dir_pth="${dst_dir_pth}/lib32"||\
-                                    lib_dst_dir_pth="${dst_dir_pth}/lib"
+                                    lib_dir="lib32"||\
+                                    lib_dir="lib"
+                                lib_dst_dir_pth="${dst_dir_pth}/${lib_dir}$(sed 's|^/usr||;s|^/lib64||;s|^/lib32||;s|^/lib||;s|^/i386-linux-gnu||;s|^/x86_64-linux-gnu||'<<<"$lib_src_dirname_pth")"
                                 lib_dst_pth="$lib_dst_dir_pth/$lib_src_name"
                                 [ ! -d "$lib_dst_dir_pth" ] && \
                                     mkdir -p "$lib_dst_dir_pth"
@@ -190,3 +191,10 @@ if [[ "$CREATE_LINKS" == 1 && -n "$(ls shared/bin 2>/dev/null)" ]]
             do ln $LNARGS ../sharun "$bin"
         done)
 fi
+
+for dir in lib lib32
+    do
+        [ -d "shared/$dir" ] && \
+        find shared/$dir -type f -name '*.so*'|xargs -I {} dirname "{}"|\
+        sort -u|sed "s|shared/$dir|+|g" > "shared/$dir/lib.path"
+done

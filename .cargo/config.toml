@@ -1,6 +1,6 @@
 [build]
 target = "x86_64-unknown-linux-musl"
-rustflags = ["-C", "target-feature=+crt-static", "-Z", "remap-cwd-prefix="]
+rustflags = ["-Z", "remap-cwd-prefix="]
 
 [unstable]
 build-std = ["std", "panic_abort"]
