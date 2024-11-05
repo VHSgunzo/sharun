@@ -77,10 +77,10 @@ if [ ! -n "$BINARY_LIST" ]
 fi
 [[ "$ONE_DIR" == 1 && ! -n "$DST_DIR_PATH" ]] && \
     DST_DIR_PATH="shared"
-ALL_LIBS="$(find -type f \
+ALL_LIBS="$(find \
     /usr/lib /usr/libexec /usr/lib64 \
     /usr/lib32 /lib /lib64 /lib32 \
-    -name '*.so*' 2>/dev/null|sort -u \
+    -name '*.so' -o -name '*.so.*' 2>/dev/null|sort -u \
 )"
 binary_number=1
 for binary in $BINARY_LIST
@@ -195,6 +195,6 @@ fi
 for dir in lib32 lib
     do
         [ -d "shared/$dir" ] && \
-        find shared/$dir -type f -name '*.so*'|xargs -I {} dirname "{}"|\
+        find shared/$dir -name '*.so' -o -name '*.so.*'|xargs -I {} dirname "{}"|\
         sort -u|sed "s|shared/$dir|+|g" > "shared/$dir/lib.path"
 done
