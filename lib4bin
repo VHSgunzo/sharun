@@ -23,6 +23,20 @@ CREATE_LINKS=${CREATE_LINKS:=1}
 #PATCH_RPATH=1
 #PATCH_INTERPRETER=1
 
+check_deps() {
+    local ret=0
+    for bin in file strip patchelf find
+        do ! command -v $bin &>/dev/null && \
+        echo -e "$RED[ ERROR ]: $BLUE[$bin]$YELLOW not found!$RESETCOLOR" && \
+        ret=1
+    done
+    if [ "$ret" != 0 ]
+        then
+            echo -e "${GREEN}You need to install lib4bin dependencies: ${BLUE}file binutils patchelf findutils$RESETCOLOR"
+            exit 1
+    fi
+}
+
 try_strip() {
     [ "$STRIP" == 1 ] && \
         strip -s -R .comment --strip-unneeded "$1"
@@ -63,6 +77,8 @@ repath_needed_libs() {
         do patchelf --replace-needed "$lib" "$(basename "$lib")" "$1"
     done
 }
+
+check_deps
 
 #IFS=$'\n'
 if [ ! -n "$BINARY_LIST" ]

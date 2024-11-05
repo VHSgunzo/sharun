@@ -1,40 +1,46 @@
 use std::{
-    fs::File,
-    io::Read,
-    {env, fs},
-    path::Path,
-    str::FromStr,
+    env,
     ffi::CString,
+    str::FromStr,
     process::exit,
-    collections::HashSet
+    collections::HashSet,
+    path::{Path, PathBuf},
+    io::{Read, Result, Error},
+    fs::{File, write, read_to_string}
 };
 
 use walkdir::WalkDir;
 
 
 const SHARUN_NAME: &str = env!("CARGO_PKG_NAME");
-const LINKER_NAME: &str = "ld-linux-x86-64.so.2";
 
 
-fn get_linker_name(library_path: &str) -> String {
-    #[cfg(target_arch = "x86_64")] // target x86_64-unknown-linux-musl
-    let linkers = vec![
-        "ld-linux-x86-64.so.2",
-        "ld-musl-x86_64.so.1",
-        "ld-linux.so.2",
-    ];
-    #[cfg(target_arch = "aarch64")] // target aarch64-unknown-linux-musl
-    let linkers = vec![
-        "ld-linux-aarch64.so.1",
-        "ld-musl-aarch64.so.1",
-    ];
-    for linker in linkers {
-        let linker_path = Path::new(library_path).join(linker);
-        if linker_path.exists() {
-            return linker_path.file_name().unwrap().to_str().unwrap().to_string()
+fn get_interpreter(library_path: &str) -> Result<PathBuf> {
+    let mut interpreters = Vec::new();
+    if let Ok(ldname) = env::var("SHARUN_LDNAME") {
+        if !ldname.is_empty() {
+            interpreters.push(ldname)
+        }
+    } else {
+        #[cfg(target_arch = "x86_64")]          // target x86_64-unknown-linux-musl
+        interpreters.append(&mut vec![
+            "ld-linux-x86-64.so.2".into(),
+            "ld-musl-x86_64.so.1".into(),
+            "ld-linux.so.2".into()
+        ]);
+        #[cfg(target_arch = "aarch64")]         // target aarch64-unknown-linux-musl
+        interpreters.append(&mut vec![
+            "ld-linux-aarch64.so.1".into(),
+            "ld-musl-aarch64.so.1".into()
+        ]);
+    }
+    for interpreter in interpreters {
+        let interpreter_path = Path::new(library_path).join(interpreter);
+        if interpreter_path.exists() {
+            return Ok(interpreter_path)
         }
     }
-    LINKER_NAME.to_string()
+    Err(Error::last_os_error())
 }
 
 fn realpath(path: &str) -> String {
@@ -51,7 +57,7 @@ fn is_file(path: &str) -> bool {
     path.is_file()
 }
 
-fn is_elf32(file_path: &str) -> std::io::Result<bool> {
+fn is_elf32(file_path: &str) -> Result<bool> {
     let mut file = File::open(file_path)?;
     let mut buff = [0u8; 5];
     file.read_exact(&mut buff)?;
@@ -87,7 +93,7 @@ fn gen_library_path(library_path: &mut String) -> i32 {
         library_path.push(':');
         library_path.push_str(&new_paths.join(":"))
     }
-    if let Err(err) = fs::write(&lib_path_file, &library_path
+    if let Err(err) = write(&lib_path_file, &library_path
         .replace(":", "\n")
         .replace(&old_library_path, "+")
     ) {
@@ -119,20 +125,20 @@ fn print_usage() {
         |  -h,  --help             Print help
         |
         [ Environments ]:
-        |  SHARUN_LDNAME=ld.so     Specifies the name of the linker",
+        |  SHARUN_LDNAME=ld.so     Specifies the name of the interpreter",
     env!("CARGO_PKG_DESCRIPTION"))));
 }
 
 fn main() {
     let sharun = env::current_exe().unwrap();
+    let mut exec_args: Vec<String> = env::args().collect();
+    
     let mut sharun_dir = sharun.parent().unwrap().to_str().unwrap().to_string();
     let lower_dir = format!("{sharun_dir}/../");
     if basename(&sharun_dir) == "bin" &&
        is_file(&format!("{lower_dir}{SHARUN_NAME}")) {
         sharun_dir = realpath(&lower_dir)
     }
-
-    let mut exec_args: Vec<String> = env::args().collect();
 
     let shared_dir = format!("{sharun_dir}/shared");
     let shared_bin = format!("{shared_dir}/bin");
@@ -186,18 +192,14 @@ fn main() {
         library_path = shared_lib
     }
 
-    let linker_name = env::var("SHARUN_LDNAME")
-        .unwrap_or(get_linker_name(&library_path));
-    let linker = &format!("{library_path}/{linker_name}");
-
-    if !Path::new(linker).exists() {
-        eprintln!("Linker not found: {linker}");
+    let interpreter = get_interpreter(&library_path).unwrap_or_else(|_|{
+        eprintln!("The interpreter was not found!");
         exit(1)
-    }
+    });
 
     let lib_path_file = format!("{library_path}/lib.path");
     if Path::new(&lib_path_file).exists() {
-        library_path = fs::read_to_string(lib_path_file).unwrap().trim()
+        library_path = read_to_string(lib_path_file).unwrap().trim()
             .replace("\n", ":")
             .replace("+", &library_path)
     } else {
@@ -209,19 +211,19 @@ fn main() {
             format!("{}={}", key, value)
     ).unwrap()).collect();
 
-    let mut linker_args = vec![
-        CString::from_str(linker).unwrap(),
+    let mut interpreter_args = vec![
+        CString::from_str(&interpreter.to_string_lossy()).unwrap(),
         CString::new("--library-path").unwrap(),
         CString::new(library_path).unwrap(),
         CString::new(bin).unwrap()
     ];
     for arg in exec_args {
-        linker_args.push(CString::from_str(&arg).unwrap())
+        interpreter_args.push(CString::from_str(&arg).unwrap())
     }
 
     userland_execve::exec(
-        Path::new(linker),
-        &linker_args,
+        interpreter.as_path(),
+        &interpreter_args,
         &envs,
     )
 }
