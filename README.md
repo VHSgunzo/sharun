@@ -1,5 +1,9 @@
 # sharun
-Run dynamically linked binaries everywhere (musl and glibc are supported)
+Run dynamically linked ELF binaries everywhere (musl and glibc are supported)
+
+## Supported architectures:
+* aarch64
+* x86_64
 
 ## To get started:
 * **Download the latest revision**
@@ -17,6 +21,23 @@ cargo build --release
 * Or take an already precompiled binary file from the [releases](https://github.com/VHSgunzo/sharun/releases)
 
 ## Usage:
+```
+[ Usage ]: sharun [OPTIONS] [EXEC ARGS]...
+|  Use lib4bin for create 'bin' and 'shared' dirs
+|
+[ Arguments ]:
+|  [EXEC ARGS]...          Command line arguments for execution
+|
+[ Options ]:
+|  -g,  --gen-lib-path     Generate library path file
+|  -v,  --version          Print version
+|  -h,  --help             Print help
+|
+[ Environments ]:
+|  SHARUN_LDNAME=ld.so     Specifies the name of the linker
+```
+
+## Examples:
 ```
 # create a directory and cd
 mkdir test && cd test

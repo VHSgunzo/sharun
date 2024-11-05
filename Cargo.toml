@@ -1,10 +1,10 @@
 [package]
 name = "sharun"
-version = "0.0.2"
+version = "0.0.3"
 readme = "README.md"
 license = "MIT"
 repository = "https://github.com/VHSgunzo/sharun"
-description = "Run dynamically linked binaries everywhere"
+description = "Run dynamically linked ELF binaries everywhere"
 edition = "2021"
 
 [profile.release]

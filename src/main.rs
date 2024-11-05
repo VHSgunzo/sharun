@@ -43,7 +43,7 @@ fn realpath(path: &str) -> String {
 
 fn basename(path: &str) -> String {
     let pieces: Vec<&str> = path.rsplit('/').collect();
-    return pieces.get(0).unwrap().to_string();
+    pieces.get(0).unwrap().to_string()
 }
 
 fn is_file(path: &str) -> bool {
@@ -61,7 +61,9 @@ fn is_elf32(file_path: &str) -> std::io::Result<bool> {
     Ok(buff[4] == 1)
 }
 
-fn scan_library_path(library_path: &mut String) {
+fn gen_library_path(library_path: &mut String) -> i32 {
+    let lib_path_file = format!("{library_path}/lib.path");
+    let old_library_path = library_path.clone();
     let mut added_dirs = HashSet::new();
     let mut new_paths = Vec::new();
     WalkDir::new(&mut *library_path)
@@ -83,35 +85,80 @@ fn scan_library_path(library_path: &mut String) {
         });
     if !new_paths.is_empty() {
         library_path.push(':');
-        library_path.push_str(&new_paths.join(":"));
+        library_path.push_str(&new_paths.join(":"))
     }
+    if let Err(err) = fs::write(&lib_path_file, &library_path
+        .replace(":", "\n")
+        .replace(&old_library_path, "+")
+    ) {
+        eprintln!("Failed to write lib path: {lib_path_file}: {err}"); 1
+    } else {
+        eprintln!("Write lib path: {lib_path_file}"); 0
+    }
+}
+
+fn strip_str(str: &str) -> String {
+    str.lines()
+    .map(|line| line.trim_start())
+    .collect::<Vec<_>>()
+    .join("\n")
+}
+
+fn print_usage() {
+    println!("{}", strip_str(&format!("[ {} ]
+        |
+        [ Usage ]: {SHARUN_NAME} [OPTIONS] [EXEC ARGS]...
+        |  Use lib4bin for create 'bin' and 'shared' dirs
+        |
+        [ Arguments ]:
+        |  [EXEC ARGS]...          Command line arguments for execution
+        |
+        [ Options ]:
+        |  -g,  --gen-lib-path     Generate library path file
+        |  -v,  --version          Print version
+        |  -h,  --help             Print help
+        |
+        [ Environments ]:
+        |  SHARUN_LDNAME=ld.so     Specifies the name of the linker",
+    env!("CARGO_PKG_DESCRIPTION"))));
 }
 
 fn main() {
     let sharun = env::current_exe().unwrap();
     let mut sharun_dir = sharun.parent().unwrap().to_str().unwrap().to_string();
     let lower_dir = format!("{sharun_dir}/../");
-    if basename(&sharun_dir) == "bin" && 
+    if basename(&sharun_dir) == "bin" &&
        is_file(&format!("{lower_dir}{SHARUN_NAME}")) {
-        sharun_dir = realpath(&lower_dir);
+        sharun_dir = realpath(&lower_dir)
     }
 
     let mut exec_args: Vec<String> = env::args().collect();
 
     let shared_dir = format!("{sharun_dir}/shared");
     let shared_bin = format!("{shared_dir}/bin");
+    let shared_lib = format!("{shared_dir}/lib");
+    let shared_lib32 = format!("{shared_dir}/lib32");
 
     let mut bin_name = basename(&exec_args.remove(0));
     if bin_name == SHARUN_NAME {
         if exec_args.len() > 0 {
             match exec_args[0].as_str() {
                 "-v" | "--version" => {
-                    eprintln!("v{}", env!("CARGO_PKG_VERSION"));
+                    println!("v{}", env!("CARGO_PKG_VERSION"));
                     return
                 }
                 "-h" | "--help" => {
-                    eprintln!("Use lib4bin for create 'bin' and 'shared' dirs!");
+                    print_usage();
                     return
+                }
+                "-g" | "--gen-lib-path" => {
+                    let mut ret = 1;
+                    for mut library_path in [shared_lib, shared_lib32] {
+                        if Path::new(&library_path).exists() {
+                            ret = gen_library_path(&mut library_path)
+                        }
+                    }
+                    exit(ret)
                 }
                 _ => { bin_name = exec_args.remove(0) }
             }
@@ -119,7 +166,7 @@ fn main() {
             eprintln!("Specify the executable from the 'shared/bin' dir!");
             if let Ok(bin_dir) = Path::new(&shared_bin).read_dir() {
                 for bin in bin_dir {
-                    eprintln!("{}", bin.unwrap().file_name().to_str().unwrap())
+                    println!("{}", bin.unwrap().file_name().to_str().unwrap())
                 }
             }
             exit(1)
@@ -134,9 +181,9 @@ fn main() {
 
     let mut library_path: String;
     if is_elf32_bin {
-        library_path = format!("{shared_dir}/lib32")
+        library_path = shared_lib32
     } else {
-        library_path = format!("{shared_dir}/lib")
+        library_path = shared_lib
     }
 
     let linker_name = env::var("SHARUN_LDNAME")
@@ -148,30 +195,13 @@ fn main() {
         exit(1)
     }
 
-
-    let path_file = format!("{library_path}/lib.path");
-    if Path::new(&path_file).exists() {
-        library_path = fs::read_to_string(path_file).unwrap().trim()
+    let lib_path_file = format!("{library_path}/lib.path");
+    if Path::new(&lib_path_file).exists() {
+        library_path = fs::read_to_string(lib_path_file).unwrap().trim()
             .replace("\n", ":")
             .replace("+", &library_path)
     } else {
-        let old_library_path = library_path.clone();
-        scan_library_path(&mut library_path);
-        // if let Ok(entries) = Path::new(&library_path).read_dir() {
-        //     for entry in entries {
-        //         let item = entry.unwrap();
-        //         if item.file_type().unwrap().is_dir() {
-        //             library_path.push_str(&format!(":{}", item.path().to_str().unwrap()));
-        //         }
-        //     }
-        // } else {
-        //     eprintln!("Failed to read dir: {library_path}");
-        //     exit(1)
-        // }
-        let _ = fs::write(path_file, &library_path
-            .replace(":", "\n")
-            .replace(&old_library_path, "+")
-        );
+        gen_library_path(&mut library_path);
     }
 
     let envs: Vec<CString> = env::vars()
