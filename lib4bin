@@ -192,7 +192,7 @@ if [[ "$CREATE_LINKS" == 1 && -n "$(ls shared/bin 2>/dev/null)" ]]
         done)
 fi
 
-for dir in lib lib32
+for dir in lib32 lib
     do
         [ -d "shared/$dir" ] && \
         find shared/$dir -type f -name '*.so*'|xargs -I {} dirname "{}"|\
