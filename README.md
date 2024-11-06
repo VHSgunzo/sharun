@@ -52,6 +52,7 @@ Options:
   -d, --dst-dir '/path'    Destination directory (env: DST_DIR=/path)
   -n, --not-one-dir        Separate directories for each executable (env: ONE_DIR=0)
   -l, --libs-only          Pack only libraries (env: LIBS_ONLY=1)
+  -w, --with-sharun        Pack sharun from PATH (env: WITH_SHARUN=1)
   -p, --hard-links         Create hard links to sharun (env: HARD_LINKS=1)
   -r, --patch-rpath        Patch RPATH to a relative path (env: PATCH_RPATH=1)
   -g, --gen-lib-path       Generate a lib.path file (env: GEN_LIB_PATH=1)

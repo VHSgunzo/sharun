@@ -20,6 +20,7 @@ STRIP=${STRIP:=0}
 VERBOSE=${VERBOSE:=0}
 LIBS_ONLY=${LIBS_ONLY:=0}
 HARD_LINKS=${HARD_LINKS:=0}
+WITH_SHARUN=${WITH_SHARUN:=0}
 PATCH_RPATH=${PATCH_RPATH:=0}
 GEN_LIB_PATH=${GEN_LIB_PATH:=0}
 ANY_EXECUTABLE=${ANY_EXECUTABLE:=0}
@@ -34,6 +35,7 @@ usage() {
     echo "  -d, --dst-dir '/path'    Destination directory (env: DST_DIR=/path)"
     echo "  -n, --not-one-dir        Separate directories for each executable (env: ONE_DIR=0)"
     echo "  -l, --libs-only          Pack only libraries (env: LIBS_ONLY=1)"
+    echo "  -w, --with-sharun        Pack sharun from PATH (env: WITH_SHARUN=1)"
     echo "  -p, --hard-links         Create hard links to sharun (env: HARD_LINKS=1)"
     echo "  -r, --patch-rpath        Patch RPATH to a relative path (env: PATCH_RPATH=1)"
     echo "  -g, --gen-lib-path       Generate a lib.path file (env: GEN_LIB_PATH=1)"
@@ -121,13 +123,14 @@ while [[ "$#" -gt 0 ]]; do
         -n|--not-one-dir) ONE_DIR=0; shift ;;
         -l|--libs-only) LIBS_ONLY=1; shift ;;
         -p|--hard-links) HARD_LINKS=1; shift ;;
+        -w|--with-sharun) WITH_SHARUN=1; shift ;;
         -r|--patch-rpath) PATCH_RPATH=1; shift ;;
         -g|--gen-lib-path) GEN_LIB_PATH=1; shift ;;
         -a|--any-executable) ANY_EXECUTABLE=1; shift ;;
         -i|--patch-interpreter) PATCH_INTERPRETER=1; shift ;;
         -d|--dst-dir)
             if [[ -n "$2" && "$2" != -* ]]
-                then DST_DIR="$2"; shift 2 
+                then DST_DIR="$2"; shift 2
                 else
                     echo -e "$RED[ ERROR ]: ${YELLOW}Option ${BLUE}$1 ${YELLOW}requires a non-empty argument!$RESETCOLOR\n"
                     usage
@@ -214,6 +217,18 @@ for binary in "${BINARY_LIST[@]}"
                                             then INTERPRETER="$(basename "$(grep 'ld-linux'<<<"$LIBS"|cut -d'=' -f1|sed 's|\t||' )")"
                                             else bin_dir_pth="$sharun_bin_dir_pth"
                                         fi
+                                        if [[ "$WITH_SHARUN" == 1 && ! -e "${DST_DIR}/sharun" ]]
+                                            then
+                                                which_sharun="$(readlink -f "$(command -v sharun)")"
+                                                 if [ -n "$which_sharun" ]
+                                                    then
+                                                        try_mkdir "$DST_DIR"
+                                                        cp $varg -f "$which_sharun" "${DST_DIR}/sharun"||exit 1
+                                                    else
+                                                        echo -e "$RED[ ERROR ]: sharun not found in PATH!$RESETCOLOR"
+                                                        exit 1
+                                                fi
+                                        fi
                                         try_mkdir "$bin_dir_pth"
                                         binary_dst_pth="$bin_dir_pth/$binary_name"
                                         if [ -n "$binary_real_name" ]
@@ -275,7 +290,7 @@ for binary in "${BINARY_LIST[@]}"
                                                                 then cp $varg -f "$lib_src_real_pth" "$lib_dst_dir_pth/"||exit 1
                                                             fi
                                                             if [[ "$lib_src_name" != "$lib_src_real_name" && ! -L "$lib_dst_pth" ]]
-                                                                then 
+                                                                then
                                                                     (cd "$lib_dst_dir_pth"||exit 1
                                                                     if [ ! -L "$lib_src_name" ]
                                                                         then ln $varg -sf "$lib_src_real_name" "$lib_src_name"||exit 1
