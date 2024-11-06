@@ -1,10 +1,10 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-# deps: apt update && apt install bash file binutils patchelf findutils -y
-# deps: apk add bash file binutils patchelf findutils
-# deps: dnf install bash file binutils patchelf findutils -y
-# deps: pacman -Sy bash file binutils patchelf findutils --noconfirm
-# deps: xbps-install -Sy bash file binutils patchelf findutils
+# deps: apt update && apt install bash file binutils patchelf findutils grep sed coreutils -y
+# deps: apk add bash file binutils patchelf findutils grep sed coreutils
+# deps: dnf install bash file binutils patchelf findutils grep sed coreutils -y
+# deps: pacman -Sy bash file binutils patchelf findutils grep sed coreutils --noconfirm
+# deps: xbps-install -Sy bash file binutils patchelf findutils grep sed coreutils
 
 RED='\033[1;91m'
 BLUE='\033[1;94m'
@@ -12,39 +12,67 @@ GREEN='\033[1;92m'
 YELLOW='\033[1;33m'
 RESETCOLOR='\033[1;00m'
 
-STRIP=${STRIP:=1}
 ONE_DIR=${ONE_DIR:=1}
+DST_DIR=${DST_DIR:=.}
 CREATE_LINKS=${CREATE_LINKS:=1}
-#HARD_LINKS=1
-#LIBS_ONLY=1
-#BINARY_LIST=''
-#DST_DIR_PATH=''
-#STATIC_BINARY=1
-#PATCH_RPATH=1
-#PATCH_INTERPRETER=1
+
+STRIP=${STRIP:=0}
+VERBOSE=${VERBOSE:=0}
+LIBS_ONLY=${LIBS_ONLY:=0}
+HARD_LINKS=${HARD_LINKS:=0}
+PATCH_RPATH=${PATCH_RPATH:=0}
+GEN_LIB_PATH=${GEN_LIB_PATH:=0}
+ANY_EXECUTABLE=${ANY_EXECUTABLE:=0}
+PATCH_INTERPRETER=${PATCH_INTERPRETER:=0}
+# BINARY_LIST=('/path/executable' '/path/executable')
+
+usage() {
+    echo -e "$YELLOW[ Usage ]: ${GREEN}$(basename "$0") ${RED}[options] ${BLUE}/path/executable$RESETCOLOR\n"
+    echo "Options:"
+    echo "  -s, --strip              Strip binaries and libraries (env: STRIP=1)"
+    echo "  -v, --verbose            Verbose mode (env: VERBOSE=1) "
+    echo "  -d, --dst-dir '/path'    Destination directory (env: DST_DIR=/path)"
+    echo "  -n, --not-one-dir        Separate directories for each executable (env: ONE_DIR=0)"
+    echo "  -l, --libs-only          Pack only libraries (env: LIBS_ONLY=1)"
+    echo "  -p, --hard-links         Create hard links to sharun (env: HARD_LINKS=1)"
+    echo "  -r, --patch-rpath        Patch RPATH to a relative path (env: PATCH_RPATH=1)"
+    echo "  -g, --gen-lib-path       Generate a lib.path file (env: GEN_LIB_PATH=1)"
+    echo "  -a, --any-executable     Pack any executable (env: ANY_EXECUTABLE=1)"
+    echo "  -i, --patch-interpreter  Patch INTERPRETER to a relative path (env: PATCH_INTERPRETER=1)"
+    echo "  -h, --help               Show this message"
+    exit 1
+}
 
 check_deps() {
     local ret=0
-    for bin in file strip patchelf find
+    local binaries=(file patchelf find grep sed)
+    [ "$STRIP" == 1 ] && binaries+=(strip)
+    for bin in "${binaries[@]}"
         do ! command -v $bin &>/dev/null && \
         echo -e "$RED[ ERROR ]: $BLUE[$bin]$YELLOW not found!$RESETCOLOR" && \
         ret=1
     done
     if [ "$ret" != 0 ]
         then
-            echo -e "${GREEN}You need to install lib4bin dependencies: ${BLUE}file binutils patchelf findutils$RESETCOLOR"
+            echo -e "${GREEN}You need to install lib4bin dependencies: ${BLUE}file binutils patchelf findutils grep sed coreutils$RESETCOLOR"
             exit 1
     fi
 }
 
 try_strip() {
-    [ "$STRIP" == 1 ] && \
-        strip -s -R .comment --strip-unneeded "$1"
+    if [ "$STRIP" == 1 ]
+        then
+            echo -e "$YELLOW[ STRIP ]: $BLUE[$1]$RESETCOLOR"
+            strip -s -R .comment --strip-unneeded "$1"
+    fi
 }
 
 try_set_rpath() {
-    [ "$PATCH_RPATH" == 1 ] && \
-        patchelf --set-rpath '$ORIGIN/../lib:$ORIGIN/../lib32' "$1"
+    if [ "$PATCH_RPATH" == 1 ]
+        then
+            echo -e "$YELLOW[ SET RPATH ]: $BLUE[$1]$RESETCOLOR"
+            patchelf --set-rpath '$ORIGIN/../lib:$ORIGIN/../lib32' "$1"
+    fi
 }
 
 print_needed() { patchelf --print-needed "$1" 2>/dev/null ; }
@@ -72,145 +100,235 @@ repath_needed_libs() {
     [ -n "$2" ] && local needed_libs="$2"||\
     local needed_libs="$(print_needed "$1")"
     local patch_needed_libs="$(grep '^/'<<<"$needed_libs")"
-    [ -n "$patch_needed_libs" ] && \
-    for lib in $patch_needed_libs
-        do patchelf --replace-needed "$lib" "$(basename "$lib")" "$1"
-    done
+    if [ -n "$patch_needed_libs" ]
+        then
+            for lib in $patch_needed_libs
+                do
+                    local relib="$(basename "$lib")"
+                    echo -e "$YELLOW[ REPATH NEEDED ]: $BLUE[$lib -> $relib]$RESETCOLOR"
+                    patchelf --replace-needed "$lib" "$relib" "$1"
+            done
+    fi
 }
+
+find_so() { find "$@" -name '*.so' -o -name '*.so.*' 2>/dev/null; }
+
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        -h|--help) usage ;;
+        -s|--strip) STRIP=1; shift ;;
+        -v|--verbose) VERBOSE=1; shift ;;
+        -n|--not-one-dir) ONE_DIR=0; shift ;;
+        -l|--libs-only) LIBS_ONLY=1; shift ;;
+        -p|--hard-links) HARD_LINKS=1; shift ;;
+        -r|--patch-rpath) PATCH_RPATH=1; shift ;;
+        -g|--gen-lib-path) GEN_LIB_PATH=1; shift ;;
+        -a|--any-executable) ANY_EXECUTABLE=1; shift ;;
+        -i|--patch-interpreter) PATCH_INTERPRETER=1; shift ;;
+        -d|--dst-dir)
+            if [[ -n "$2" && "$2" != -* ]]
+                then DST_DIR="$2"; shift 2 
+                else
+                    echo -e "$RED[ ERROR ]: ${YELLOW}Option ${BLUE}$1 ${YELLOW}requires a non-empty argument!$RESETCOLOR\n"
+                    usage
+            fi
+            ;;
+         -*) echo "Unknown parameter: $1"; usage ;;
+        *) break ;;
+    esac
+done
 
 check_deps
 
-#IFS=$'\n'
+[ "$VERBOSE" == 1 ] && \
+varg='-v'||unset varg
+
 if [ ! -n "$BINARY_LIST" ]
     then
         if [ -n "$1" ]
             then
-                BINARY_LIST="$@"
+                BINARY_LIST=("$@")
             else
-                echo -e "$RED[ ERROR ]: Specify the ELF binary executable!$RESETCOLOR"
-                exit 1
+                echo -e "$RED[ ERROR ]: Specify the executable!$RESETCOLOR"
+                usage
         fi
 fi
-[[ "$ONE_DIR" == 1 && ! -n "$DST_DIR_PATH" ]] && \
-    DST_DIR_PATH="shared"
-ALL_LIBS="$(find \
+
+ALL_LIBS="$(find_so \
     /usr/lib /usr/libexec /usr/lib64 \
     /usr/lib32 /lib /lib64 /lib32 \
-    -name '*.so' -o -name '*.so.*' 2>/dev/null|sort -u \
+    |sort -u \
 )"
+
+try_mkdir() {
+    if [ ! -d "$1" ]
+        then mkdir $varg -p "$1"||exit 1
+    fi
+}
+
 binary_number=1
-for binary in $BINARY_LIST
+declare -A DST_DIRS
+declare -A BINARIES
+declare -A LIBRARIES
+for binary in "${BINARY_LIST[@]}"
     do
         unset binary_real_name
         if [ -L "$binary" ]
             then
-                binary_src_pth="$(readlink -f "$binary" 2>/dev/null)"
-                binary_real_name="$(basename "$binary_src_pth" 2>/dev/null)"
+                binary_src_pth="$(readlink -f "$binary")"
+                binary_real_name="$(basename "$binary_src_pth")"
             else
                 binary_src_pth="$binary"
         fi
-        binary_name="$(basename "$binary" 2>/dev/null)"
-        [ -n "$DST_DIR_PATH" ] && \
-            dst_dir_pth="$DST_DIR_PATH" \
-            || dst_dir_pth="$binary_name"
-        [[ -f "$dst_dir_pth" || -L "$dst_dir_pth" ]] && \
-            dst_dir_pth="$dst_dir_pth.dir"
-        bin_dir_pth="${dst_dir_pth}/bin"
-        FILE_INFO="$(file "$binary_src_pth" 2>/dev/null)"
-        IS_ELF32="$(grep -o 'ELF 32-bit'<<<"$FILE_INFO")"
-        if [[ -n "$(grep 'ELF'<<<"$FILE_INFO"|grep -o 'executable')" ]]
+        if [[ "${BINARIES["$binary_src_pth"]}" != 1 ]]
             then
-                # strace -f -e trace=openat "$binary_src_pth"|& grep '/lib.*\.so'|grep -v ENOENT|awk '{print$2}'|sed 's|^.||g;s|..$||g'|sort -u|xargs -I {} cp -f {} shared/lib/
-                needed_libs="$(print_needed "$binary_src_pth")"
-                LIBS="$(get_libs "$binary_src_pth" "$needed_libs")"
-                if [[ -n "$LIBS" || "$STATIC_BINARY" == 1 ]]
+                binary_name="$(basename "$binary")"
+                if [ "$ONE_DIR" == 1 ]
                     then
-                        if [ "$LIBS_ONLY" != 1 ]
-                            then
-                                INTERPRETER="$(basename "$(grep 'ld-linux'<<<"$LIBS"|cut -d'=' -f1|sed 's|\t||' )")"
-                                [ ! -d "$bin_dir_pth" ] && \
-                                    mkdir -p "$bin_dir_pth"
-                                binary_dst_pth="$bin_dir_pth/$binary_name"
-                                if [ -n "$binary_real_name" ]
-                                    then
-                                        [ ! -f "$bin_dir_pth/$binary_real_name" ] && \
-                                            cp -f "$binary_src_pth" "$bin_dir_pth/"
-                                        [[ "$binary_name" != "$binary_real_name" && ! -L "$binary_dst_pth" ]] && \
-                                            (cd "$bin_dir_pth" && \
-                                                ln -sf "$binary_real_name" "$binary_name")
-                                    else
-                                        [ ! -f "$binary_dst_pth" ] && \
-                                            cp -f "$binary_src_pth" "$bin_dir_pth/"
-                                fi
-                                repath_needed_libs "$binary_dst_pth" "$needed_libs"
-                                try_strip "$binary_dst_pth"
-                                try_set_rpath "$binary_dst_pth"
-                        fi
-                        for lib_src_pth in $LIBS
-                            do
-                                unset lib_src_real_pth
-                                if [ -L "$lib_src_pth" ]
-                                    then
-                                        lib_src_real_pth="$(readlink -f "$lib_src_pth" 2>/dev/null)"
-                                        lib_src_dirname_pth="$(dirname "$lib_src_real_pth" 2>/dev/null)"
-                                    else
-                                        lib_src_dirname_pth="$(dirname "$lib_src_pth" 2>/dev/null)"
-                                fi
-                                lib_src_name="$(basename "$lib_src_pth" 2>/dev/null)"
-                                grep -qE '/lib32|/i386-linux-gnu'<<<"$lib_src_dirname_pth" && \
-                                    lib_dir="lib32"||\
-                                    lib_dir="lib"
-                                lib_dst_dir_pth="${dst_dir_pth}/${lib_dir}$(sed 's|^/usr||;s|^/lib64||;s|^/lib32||;s|^/lib||;s|^/i386-linux-gnu||;s|^/x86_64-linux-gnu||'<<<"$lib_src_dirname_pth")"
-                                lib_dst_pth="$lib_dst_dir_pth/$lib_src_name"
-                                [ ! -d "$lib_dst_dir_pth" ] && \
-                                    mkdir -p "$lib_dst_dir_pth"
-                                if [ -n "$lib_src_real_pth" ]
-                                        then
-                                            lib_src_real_name="$(basename "$lib_src_real_pth" 2>/dev/null)"
-                                            [ ! -f "$lib_dst_dir_pth/$lib_src_real_name" ] && \
-                                                cp -f "$lib_src_real_pth" "$lib_dst_dir_pth/"
-                                            [[ "$lib_src_name" != "$lib_src_real_name" && ! -L "$lib_dst_pth" ]] && \
-                                                (cd "$lib_dst_dir_pth" && \
-                                                    [ ! -L "$lib_src_name" ] && \
-                                                        ln -sf "$lib_src_real_name" "$lib_src_name")
-                                        else
-                                            [ ! -f "$lib_dst_pth" ] && \
-                                                cp -f "$lib_src_pth" "$lib_dst_dir_pth/"
-                                fi
-                                repath_needed_libs "$lib_dst_pth"
-                                try_strip "$lib_dst_pth"
-                                [[ "$lib_dst_pth" =~ "$INTERPRETER" ]]||\
-                                try_set_rpath "$lib_dst_pth"
-                        done
-                        if [ "$LIBS_ONLY" != 1 ]
-                            then
-                                (cd "$bin_dir_pth"
-                                [[ "$PATCH_INTERPRETER" == 1 && -f "../lib/$INTERPRETER" ]] && \
-                                    patchelf --set-interpreter "../lib/$INTERPRETER" "$binary_name")
-                        fi
-                        echo -e "$YELLOW[ $binary_number ]: $BLUE[$binary_name] $GREEN[ DONE ]$RESETCOLOR"
-                        binary_number=$(( $binary_number + 1 ))
+                        dst_dir_pth="${DST_DIR}/shared"
+                        sharun_bin_dir_pth="${DST_DIR}/bin"
                     else
-                        echo -e "$YELLOW[ SKIPPED ]: $BLUE[$binary_src_pth]$YELLOW ELF executable not dynamically linked!$RESETCOLOR"
+                        dst_dir_pth="${DST_DIR}/${binary_name}/shared"
+                        sharun_bin_dir_pth="${DST_DIR}/${binary_name}/bin"
                 fi
-            else
-                echo -e "$YELLOW[ SKIPPED ]: $BLUE[$binary_src_pth]$YELLOW not ELF executable!$RESETCOLOR"
+                [[ -f "$dst_dir_pth" || -L "$dst_dir_pth" ]] && \
+                    dst_dir_pth="${dst_dir_pth}.dir"
+                DST_DIRS["$dst_dir_pth"]=
+                bin_dir_pth="${dst_dir_pth}/bin"
+                FILE_INFO="$(file "$binary_src_pth" 2>/dev/null)"
+                IS_ELF="$(grep -o 'ELF '<<<"$FILE_INFO")"
+                IS_ELF32="$(grep -q 'ELF 32-bit'<<<"$FILE_INFO")"
+                IS_EXECUTABLE="$(grep -o 'executable'<<<"$FILE_INFO")"
+                echo -e "$YELLOW[ $binary_number ]: $BLUE[$binary_name] ${GREEN}...$RESETCOLOR"
+                if [ -n "$IS_EXECUTABLE" ] && [[ "$ANY_EXECUTABLE" == 1 || -n "$IS_ELF" ]]
+                    then
+                        # strace -f -e trace=openat "$binary_src_pth"|& grep '/lib.*\.so'|grep -v ENOENT|\
+                        # awk '{print$2}'|sed 's|^.||g;s|..$||g'|sort -u|xargs -I {} cp -f {} shared/lib/
+                        needed_libs="$(print_needed "$binary_src_pth")"
+                        LIBS="$(get_libs "$binary_src_pth" "$needed_libs")"
+                        if [[ -n "$LIBS" || "$ANY_EXECUTABLE" == 1 ]]
+                            then
+                                if [ "$LIBS_ONLY" != 1 ]
+                                    then
+                                        if [ -n "$LIBS" ]
+                                            then INTERPRETER="$(basename "$(grep 'ld-linux'<<<"$LIBS"|cut -d'=' -f1|sed 's|\t||' )")"
+                                            else bin_dir_pth="$sharun_bin_dir_pth"
+                                        fi
+                                        try_mkdir "$bin_dir_pth"
+                                        binary_dst_pth="$bin_dir_pth/$binary_name"
+                                        if [ -n "$binary_real_name" ]
+                                            then
+                                                if [ ! -f "$bin_dir_pth/$binary_real_name" ]
+                                                    then cp $varg -f "$binary_src_pth" "$bin_dir_pth/"||exit 1
+                                                fi
+                                                if [[ "$binary_name" != "$binary_real_name" && ! -L "$binary_dst_pth" ]]
+                                                    then (cd "$bin_dir_pth"||exit 1
+                                                        ln $varg -sf "$binary_real_name" "$binary_name"||exit 1)||exit 1
+                                                fi
+                                            else
+                                                if [ ! -f "$binary_dst_pth" ]
+                                                    then cp $varg -f "$binary_src_pth" "$bin_dir_pth/"||exit 1
+                                                fi
+                                        fi
+                                        if [ -n "$IS_ELF" ]
+                                            then try_strip "$binary_dst_pth"||exit 1
+                                        fi
+                                        if [ -n "$LIBS" ]
+                                            then
+                                                repath_needed_libs "$binary_dst_pth" "$needed_libs"||exit 1
+                                                try_set_rpath "$binary_dst_pth"||exit 1
+                                                if [ "$CREATE_LINKS" == 1 ]
+                                                    then
+                                                        try_mkdir "$sharun_bin_dir_pth"
+                                                        [ "$HARD_LINKS" == 1 ] && \
+                                                            ln_args='-Pf'||ln_args='-sf'
+                                                        (cd "$sharun_bin_dir_pth"||exit 1
+                                                        ln $varg $ln_args ../sharun "$binary_name"||exit 1
+                                                        if [ -n "$binary_real_name" ]
+                                                            then ln $varg $ln_args ../sharun "$binary_real_name"||exit 1
+                                                        fi)||exit 1
+                                                fi
+                                        fi
+                                fi
+                                for lib_src_pth in $LIBS
+                                    do
+                                        if [[ "${LIBRARIES["$lib_src_pth"]}" != 1 ]]
+                                            then
+                                                unset lib_src_real_pth
+                                                if [ -L "$lib_src_pth" ]
+                                                    then
+                                                        lib_src_real_pth="$(readlink -f "$lib_src_pth")"
+                                                        lib_src_dirname_pth="$(dirname "$lib_src_real_pth")"
+                                                    else
+                                                        lib_src_dirname_pth="$(dirname "$lib_src_pth")"
+                                                fi
+                                                lib_src_name="$(basename "$lib_src_pth")"
+                                                grep -qE '/lib32|/i386-linux-gnu'<<<"$lib_src_dirname_pth" && \
+                                                    lib_dir="lib32"||lib_dir="lib"
+                                                lib_dst_dir_pth="${dst_dir_pth}/${lib_dir}$(sed 's|^/usr||;s|^/lib64||;s|^/lib32||;s|^/lib||;s|^/i386-linux-gnu||;s|^/x86_64-linux-gnu||'<<<"$lib_src_dirname_pth")"
+                                                lib_dst_pth="$lib_dst_dir_pth/$lib_src_name"
+                                                try_mkdir "$lib_dst_dir_pth"
+                                                if [ -n "$lib_src_real_pth" ]
+                                                        then
+                                                            lib_src_real_name="$(basename "$lib_src_real_pth")"
+                                                            if [ ! -f "$lib_dst_dir_pth/$lib_src_real_name" ]
+                                                                then cp $varg -f "$lib_src_real_pth" "$lib_dst_dir_pth/"||exit 1
+                                                            fi
+                                                            if [[ "$lib_src_name" != "$lib_src_real_name" && ! -L "$lib_dst_pth" ]]
+                                                                then 
+                                                                    (cd "$lib_dst_dir_pth"||exit 1
+                                                                    if [ ! -L "$lib_src_name" ]
+                                                                        then ln $varg -sf "$lib_src_real_name" "$lib_src_name"||exit 1
+                                                                    fi)||exit 1
+                                                            fi
+                                                        else
+                                                            if [ ! -f "$lib_dst_pth" ]
+                                                                then cp $varg -f "$lib_src_pth" "$lib_dst_dir_pth/"||exit 1
+                                                            fi
+                                                fi
+                                                repath_needed_libs "$lib_dst_pth"||exit 1
+                                                try_strip "$lib_dst_pth"||exit 1
+                                                if [[ ! "$lib_dst_pth" =~ "$INTERPRETER" ]]
+                                                    then try_set_rpath "$lib_dst_pth"||exit 1
+                                                fi
+                                                LIBRARIES["$lib_src_pth"]=1
+                                        fi
+                                done
+                                if [[ "$LIBS_ONLY" != 1 && -n "$INTERPRETER" && "${BINARIES["$lib_src_pth"]}" != 1 ]]
+                                    then
+                                        (cd "$bin_dir_pth"||exit 1
+                                        if [[ "$PATCH_INTERPRETER" == 1 && -f "../$lib_dir/$INTERPRETER" ]]
+                                            then
+                                                echo -e "$YELLOW[ SET INTERPRETER ]: $BLUE[$bin_dir_pth/$binary_name -> ../$lib_dir/$INTERPRETER]$RESETCOLOR"
+                                                patchelf --set-interpreter "../$lib_dir/$INTERPRETER" "$binary_name"||exit 1
+                                        fi)||exit 1
+                                fi
+                                echo -e "$GREEN[ DONE ]$RESETCOLOR"
+                                binary_number=$(( $binary_number + 1 ))
+                            else
+                                echo -e "$YELLOW[ SKIPPED ]: $BLUE[$binary_src_pth]$YELLOW executable not dynamically linked!$RESETCOLOR"
+                        fi
+                    else
+                        echo -e "$YELLOW[ SKIPPED ]: $BLUE[$binary_src_pth]$YELLOW not ELF executable!$RESETCOLOR"
+                fi
+                BINARIES["$binary_src_pth"]=1
         fi
 done
+unset BINARIES LIBRARIES
 
-if [[ "$CREATE_LINKS" == 1 && -n "$(ls shared/bin 2>/dev/null)" ]]
+if [ "$GEN_LIB_PATH" == 1 ]
     then
-        [ ! -d bin ] && mkdir bin
-        [ "$HARD_LINKS" == 1 ] && \
-        LNARGS='-Pf'||LNARGS='-sf'
-        (cd bin && for bin in $(ls ../shared/bin 2>/dev/null)
-            do ln $LNARGS ../sharun "$bin"
-        done)
+        for dst_dir in "${!DST_DIRS[@]}"
+            do
+                (cd "$dst_dir"||exit 1
+                for lib_dir in lib lib32
+                    do
+                        if [ -d "$lib_dir" ]
+                            then
+                                echo -e "$YELLOW[ GEN LIB PATH ]: $BLUE[${dst_dir}/${lib_dir}/lib.path]$RESETCOLOR" && \
+                                find_so "$lib_dir"|xargs -I {} dirname "{}"|\
+                                sort -u|sed "s|$lib_dir|+|g" > "$lib_dir/lib.path"||exit 1
+                        fi
+                done)||exit 1
+        done
 fi
-
-for dir in lib32 lib
-    do
-        [ -d "shared/$dir" ] && \
-        find shared/$dir -name '*.so' -o -name '*.so.*'|xargs -I {} dirname "{}"|\
-        sort -u|sed "s|shared/$dir|+|g" > "shared/$dir/lib.path"
-done
