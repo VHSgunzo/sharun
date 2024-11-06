@@ -72,7 +72,7 @@ cp ../target/x86_64-unknown-linux-musl/release/sharun .
 ../lib4bin --strip --gen-lib-path /bin/bash
 
 # or for correct /proc/self/exe you can use HARD_LINKS=1
-../lib4bin --hard-links /bin/bash
+../lib4bin --hard-links --strip --gen-lib-path /bin/bash
 # this ^ will create hard links to 'sharun' in the 'bin' directory
 
 # now you can move 'test' dir to other linux system and run binaries from the 'bin' dir
