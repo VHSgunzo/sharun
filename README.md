@@ -19,9 +19,12 @@ git clone https://github.com/VHSgunzo/sharun.git && cd sharun
 * **Compile a binary**
 ```
 rustup default nightly
-rustup target add x86_64-unknown-linux-musl
+rustup target add $(uname -m)-unknown-linux-musl
 rustup component add rust-src --toolchain nightly
 cargo build --release
+cp ./target/$(uname -m)-unknown-linux-musl/release/sharun .
+./sharun --help
+./sharun lib4bin --help
 ```
 * Or take an already precompiled binary file from the [releases](https://github.com/VHSgunzo/sharun/releases)
 
@@ -65,24 +68,18 @@ cargo build --release
 
 ## Examples:
 ```
-# create a directory and cd
-mkdir test && cd test
-
-# and copy 'sharun' to this directory
-cp ../target/x86_64-unknown-linux-musl/release/sharun .
-
 # run lib4bin with the paths to the binary files that you want to make portable
-./sharun lib4bin --strip --gen-lib-path /bin/bash
+./sharun lib4bin --with-sharun --dst-dir test /bin/bash
 
-# or for correct /proc/self/exe you can use HARD_LINKS=1
-./sharun lib4bin --hard-links --strip --gen-lib-path /bin/bash
-# this will create hard links to 'sharun' in the 'bin' directory
+# or for correct /proc/self/exe you can use --hard-links flag
+./sharun lib4bin --hard-links --with-sharun --dst-dir test /bin/bash
+# this will create hard links from 'test/sharun' in the 'test/bin' directory
 
 # now you can move 'test' dir to other linux system and run binaries from the 'bin' dir
-./bin/bash --version
+./test/bin/bash --version
 
 # or specify them as an argument to 'sharun'
-./sharun bash --version
+./test/sharun bash --version
 ```
 
 # Screenshots:
