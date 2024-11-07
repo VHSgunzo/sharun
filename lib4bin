@@ -341,13 +341,7 @@ for binary in "${BINARY_LIST[@]}"
                                                         info_msg "Downloading sharun -> '$SHARUN'..."
                                                         info_msg "$(get_sharun_git_url)"
                                                         if try_dl "$(get_sharun_git_url)" "$SHARUN"
-                                                            then
-                                                                chmod $varg +x "$SHARUN"
-                                                                if ! "$SHARUN" --version &>/dev/null
-                                                                    then
-                                                                        error_msg "Failed to check sharun version!"
-                                                                        exit 1
-                                                                fi
+                                                            then chmod $varg +x "$SHARUN"
                                                             else
                                                                 error_msg "Failed to download sharun!"
                                                                 exit 1
