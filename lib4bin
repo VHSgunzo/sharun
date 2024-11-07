@@ -70,17 +70,20 @@ which_exe() { command -v "$@" ; }
 is_exe_exist() { which_exe "$@" &>/dev/null ; }
 
 check_deps() {
+    local ret=0
     local binaries=(file patchelf find grep sed)
     [ "$STRIP" == 1 ] && binaries+=(strip)
     for bin in "${binaries[@]}"
         do
             if ! is_exe_exist $bin
-                then error_msg "$BLUE[$bin]$YELLOW not found!"
+                then 
+                    error_msg "$BLUE[$bin]$YELLOW not found!"
+                    ret=1
             fi
     done
-    if [ "$?" != 0 ]
+    if [ "$ret" != 0 ]
         then
-            info_msg "You need to install lib4bin dependencies: ${BLUE}file binutils patchelf findutils grep sed coreutils"
+            info_msg "You need to install ${BLUE}lib4bin${GREEN} dependencies: ${BLUE}file binutils patchelf findutils grep sed coreutils"
             exit 1
     fi
 }
