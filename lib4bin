@@ -336,7 +336,7 @@ for binary in "${BINARY_LIST[@]}"
                                             then
                                                 SHARUN="${SHARUN:="$(readlink -f "$(which_exe sharun)")"}"
                                                 SHARUN="${SHARUN:="/tmp/$(uname -m)/sharun"}"
-                                                if [ ! -e "$SHARUN" ]
+                                                if [ ! -x "$SHARUN" ]
                                                     then
                                                         info_msg "Downloading sharun -> '$SHARUN'..."
                                                         info_msg "$(get_sharun_git_url)"
@@ -353,7 +353,7 @@ for binary in "${BINARY_LIST[@]}"
                                                                 exit 1
                                                         fi
                                                 fi
-                                                if [ -e "$SHARUN" ]
+                                                if [ -x "$SHARUN" ]
                                                     then
                                                         try_mkdir "$DST_DIR"
                                                         cp $varg -f "$SHARUN" "${DST_DIR}/sharun"||exit 1
