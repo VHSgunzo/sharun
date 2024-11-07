@@ -26,6 +26,7 @@ PATCH_RPATH=${PATCH_RPATH:=0}
 GEN_LIB_PATH=${GEN_LIB_PATH:=0}
 ANY_EXECUTABLE=${ANY_EXECUTABLE:=0}
 PATCH_INTERPRETER=${PATCH_INTERPRETER:=0}
+
 # BINARY_LIST=('/path/executable' '/path/executable')
 GIT_SHARUN_RELEASES='https://github.com/VHSgunzo/sharun/releases'
 
@@ -33,19 +34,20 @@ usage() {
     echo -e "[ Usage ]: lib4bin [options] /path/executable
 
 [ Options ]:
-    -s, --strip              Strip binaries and libraries (env: STRIP)
-    -v, --verbose            Verbose mode (env: VERBOSE)
-    -d, --dst-dir '/path'    Destination directory (env: DST_DIR)
+    -s, --strip              Strip binaries and libraries (env: STRIP=1)
+    -v, --verbose            Verbose mode (env: VERBOSE=1)
+    -d, --dst-dir '/path'    Destination directory (env: DST_DIR=/path)
     -n, --not-one-dir        Separate directories for each executable (env: ONE_DIR=0)
-    -l, --libs-only          Pack only libraries (env: LIBS_ONLY)
-    -w, --with-sharun        Pack sharun from PATH or env or download (env: WITH_SHARUN, SHARUN, SHARUN_URL)
-    -p, --hard-links         Create hard links to sharun (env: HARD_LINKS)
-    -r, --patch-rpath        Patch RPATH to a relative path (env: PATCH_RPATH)
-    -g, --gen-lib-path       Generate a lib.path file (env: GEN_LIB_PATH)
-    -a, --any-executable     Pack any executable (env: ANY_EXECUTABLE)
-    -i, --patch-interpreter  Patch INTERPRETER to a relative path (env: PATCH_INTERPRETER)
-    -q, --quiet-mode         Show only errors (env: QUIET_MODE)
-    -h, --help               Show this message"
+    -l, --libs-only          Pack only libraries (env: LIBS_ONLY=1)
+    -p, --hard-links         Create hard links to sharun (env: HARD_LINKS=1)
+    -r, --patch-rpath        Patch RPATH to a relative path (env: PATCH_RPATH=1)
+    -g, --gen-lib-path       Generate a lib.path file (env: GEN_LIB_PATH=1)
+    -a, --any-executable     Pack any executable (env: ANY_EXECUTABLE=1)
+    -i, --patch-interpreter  Patch INTERPRETER to a relative path (env: PATCH_INTERPRETER=1)
+    -q, --quiet-mode         Show only errors (env: QUIET_MODE=1)
+    -h, --help               Show this message
+    -w, --with-sharun        Pack sharun from PATH or env or download
+    (env: WITH_SHARUN=1, SHARUN=/path|URL, SHARUN_URL=URL, UPX_SHARUN=1)"
     exit 1
 }
 
@@ -93,7 +95,7 @@ try_strip() {
     if [ "$STRIP" == 1 ]
         then
             info_msg "$YELLOW[ STRIP ]: $BLUE[$1]"
-            strip -s -R .comment --strip-unneeded "$1"
+            strip -s -R .comment --strip-unneeded "$1"||exit 1
     fi
 }
 
@@ -101,7 +103,7 @@ try_set_rpath() {
     if [ "$PATCH_RPATH" == 1 ]
         then
             info_msg "$YELLOW[ SET RPATH ]: $BLUE[$1]"
-            patchelf --set-rpath '$ORIGIN/../lib:$ORIGIN/../lib32' "$1"
+            patchelf $pvarg --set-rpath '$ORIGIN/../lib:$ORIGIN/../lib32' "$1"||exit 1
     fi
 }
 
@@ -115,7 +117,7 @@ get_libs() {
     [ -n "$2" ] && local needed_libs="$2"||\
     local needed_libs="$(print_needed "$1")"
     local libs="$(([ -z "$needed_libs" ]||\
-        grep -E "$(tr '\n' '|'<<<"$needed_libs")libpthread.so.0"<<<"$ALL_LIBS" ; \
+        grep -E "$(tr '\n' '$|'<<<"$needed_libs")libpthread.so.0$"<<<"$ALL_LIBS" ; \
         ldd_libs "$1")|sort -u)"
     [ -n "$IS_ELF32" ] && \
     local libs="$(grep -vE '/lib/|/lib64/|/x86_64-linux-gnu/'<<<"$libs")"||\
@@ -136,7 +138,7 @@ repath_needed_libs() {
                 do
                     local relib="$(basename "$lib")"
                     info_msg "$YELLOW[ REPATH ]: $BLUE[$lib -> $relib]"
-                    patchelf --replace-needed "$lib" "$relib" "$1"
+                    patchelf $pvarg --replace-needed "$lib" "$relib" "$1"||exit 1
             done
     fi
 }
@@ -145,6 +147,30 @@ try_mkdir() {
     if [ ! -d "$1" ]
         then mkdir $varg -p "$1"||exit 1
     fi
+}
+
+try_ln() {
+    if [ ! -L "$2" ]
+        then
+            [ "$VERBOSE" == 1 ] && \
+                echo -n "ln: "
+            ln $varg -sf "$1" "$2"||exit 1
+    fi
+}
+
+try_cp() {
+    if [ ! -f "$2" ]
+        then
+            [ "$VERBOSE" == 1 ] && \
+                echo -n "cp: "
+            cp $varg -f "$1" "$2"||exit 1
+    fi
+}
+
+try_cd() {
+    [ "$VERBOSE" == 1 ] && \
+        echo "cd: '$1'"
+    cd "$1"||exit 1
 }
 
 find_so() { find "$@" -name '*.so' -o -name '*.so.*' 2>/dev/null ; }
@@ -162,8 +188,7 @@ check_url_stat_code() {
 
 get_sharun_git_url() {
     echo "${GIT_SHARUN_RELEASES}/download/$(NO_ARIA2C=1 try_dl "${GIT_SHARUN_RELEASES}/latest" \
-        /dev/stdout 2>/dev/null|grep -m1 "Release v.*"|awk '{print$2}')/sharun-$(uname -m)"
-
+    /dev/stdout 2>/dev/null|grep -m1 "Release v.*"|awk '{print$2}')/sharun-$(uname -m)$([ "$UPX_SHARUN" != 1 ]||echo -upx)"
 }
 
 is_url() {
@@ -268,8 +293,13 @@ done
 
 check_deps
 
-[ "$VERBOSE" == 1 ] && \
-varg='-v'||unset varg
+if [ "$VERBOSE" == 1 ]
+    then
+        varg='-v'
+        pvarg='--debug'
+    else
+        unset varg pvarg
+fi
 
 if [ ! -n "$BINARY_LIST" ]
     then
@@ -307,11 +337,13 @@ for binary in "${BINARY_LIST[@]}"
                 binary_name="$(basename "$binary")"
                 if [ "$ONE_DIR" == 1 ]
                     then
+                        dst_dir="$DST_DIR"
                         dst_dir_pth="${DST_DIR}/shared"
                         sharun_bin_dir_pth="${DST_DIR}/bin"
                     else
-                        dst_dir_pth="${DST_DIR}/${binary_name}/shared"
-                        sharun_bin_dir_pth="${DST_DIR}/${binary_name}/bin"
+                        dst_dir="${DST_DIR}/${binary_name}"
+                        dst_dir_pth="${dst_dir}/shared"
+                        sharun_bin_dir_pth="${dst_dir}/bin"
                 fi
                 [[ -f "$dst_dir_pth" || -L "$dst_dir_pth" ]] && \
                     dst_dir_pth="${dst_dir_pth}.dir"
@@ -333,12 +365,15 @@ for binary in "${BINARY_LIST[@]}"
                                 if [ "$LIBS_ONLY" != 1 ]
                                     then
                                         if [ -n "$LIBS" ]
-                                            then INTERPRETER="$(basename "$(grep 'ld-linux'<<<"$LIBS"|cut -d'=' -f1|sed 's|\t||' )")"
+                                            then
+                                                INTERPRETER="$(basename "$(grep 'ld-linux'<<<"$LIBS"|cut -d'=' -f1|sed 's|\t||' )")"
+                                                [[ "$CREATE_LINKS" == 1 && "$HARD_LINKS" == 1 && ! -x "${dst_dir}/sharun" ]] && \
+                                                    WITH_SHARUN=1
                                             else bin_dir_pth="$sharun_bin_dir_pth"
                                         fi
-                                        if [[ "$WITH_SHARUN" == 1 && ! -e "${DST_DIR}/sharun" ]]
+                                        if [[ "$WITH_SHARUN" == 1 && ! -x "${dst_dir}/sharun" ]]
                                             then
-                                                TMP_SHARUN="/tmp/$(uname -m)/sharun"
+                                                TMP_SHARUN="/tmp/sharun-$(uname -m)$([ "$UPX_SHARUN" != 1 ]||echo -upx)"
                                                 SHARUN="${SHARUN:="$(readlink -f "$(which_exe sharun)")"}"
                                                 SHARUN="${SHARUN:="$TMP_SHARUN"}"
                                                 if [ ! -x "$SHARUN" ]
@@ -360,8 +395,8 @@ for binary in "${BINARY_LIST[@]}"
                                                 fi
                                                 if [ -x "$SHARUN" ]
                                                     then
-                                                        try_mkdir "$DST_DIR"
-                                                        cp $varg -f "$SHARUN" "${DST_DIR}/sharun"||exit 1
+                                                        try_mkdir "$dst_dir"
+                                                        try_cp "$SHARUN" "${dst_dir}/sharun"
                                                     else
                                                         error_msg "sharun not found!"
                                                         exit 1
@@ -371,34 +406,34 @@ for binary in "${BINARY_LIST[@]}"
                                         binary_dst_pth="$bin_dir_pth/$binary_name"
                                         if [ -n "$binary_real_name" ]
                                             then
-                                                if [ ! -f "$bin_dir_pth/$binary_real_name" ]
-                                                    then cp $varg -f "$binary_src_pth" "$bin_dir_pth/"||exit 1
-                                                fi
+                                                try_cp "$binary_src_pth" "$bin_dir_pth/$binary_real_name"
                                                 if [[ "$binary_name" != "$binary_real_name" && ! -L "$binary_dst_pth" ]]
-                                                    then (cd "$bin_dir_pth"||exit 1
-                                                        ln $varg -sf "$binary_real_name" "$binary_name"||exit 1)||exit 1
+                                                    then
+                                                        (try_cd "$bin_dir_pth"
+                                                        try_ln "$binary_real_name" "$binary_name")||exit 1
                                                 fi
                                             else
-                                                if [ ! -f "$binary_dst_pth" ]
-                                                    then cp $varg -f "$binary_src_pth" "$bin_dir_pth/"||exit 1
-                                                fi
+                                                try_cp "$binary_src_pth" "$binary_dst_pth"
                                         fi
                                         if [ -n "$IS_ELF" ]
-                                            then try_strip "$binary_dst_pth"||exit 1
+                                            then try_strip "$binary_dst_pth"
                                         fi
                                         if [ -n "$LIBS" ]
                                             then
-                                                repath_needed_libs "$binary_dst_pth" "$needed_libs"||exit 1
-                                                try_set_rpath "$binary_dst_pth"||exit 1
+                                                repath_needed_libs "$binary_dst_pth" "$needed_libs"
+                                                try_set_rpath "$binary_dst_pth"
                                                 if [ "$CREATE_LINKS" == 1 ]
                                                     then
                                                         try_mkdir "$sharun_bin_dir_pth"
                                                         [ "$HARD_LINKS" == 1 ] && \
                                                             ln_args='-Pf'||ln_args='-sf'
-                                                        (cd "$sharun_bin_dir_pth"||exit 1
+                                                        (try_cd "$sharun_bin_dir_pth"
+                                                        [ "$VERBOSE" != 1 ]||echo -n "ln: "
                                                         ln $varg $ln_args ../sharun "$binary_name"||exit 1
                                                         if [ -n "$binary_real_name" ]
-                                                            then ln $varg $ln_args ../sharun "$binary_real_name"||exit 1
+                                                            then
+                                                                [ "$VERBOSE" != 1 ]||echo -n "ln: "
+                                                                ln $varg $ln_args ../sharun "$binary_real_name"||exit 1
                                                         fi)||exit 1
                                                 fi
                                         fi
@@ -421,39 +456,38 @@ for binary in "${BINARY_LIST[@]}"
                                                 lib_dst_dir_pth="${dst_dir_pth}/${lib_dir}$(sed 's|^/usr||;s|^/lib64||;s|^/lib32||;s|^/lib||;s|^/i386-linux-gnu||;s|^/x86_64-linux-gnu||'<<<"$lib_src_dirname_pth")"
                                                 lib_dst_pth="$lib_dst_dir_pth/$lib_src_name"
                                                 try_mkdir "$lib_dst_dir_pth"
+                                                if [[ "$HARD_LINKS" == 1 && ! -L "${dst_dir}/${lib_dir}" ]]
+                                                    then
+                                                        (try_cd "$dst_dir"
+                                                        try_ln shared/$lib_dir $lib_dir)||exit 1
+                                                fi
                                                 if [ -n "$lib_src_real_pth" ]
                                                         then
                                                             lib_src_real_name="$(basename "$lib_src_real_pth")"
-                                                            if [ ! -f "$lib_dst_dir_pth/$lib_src_real_name" ]
-                                                                then cp $varg -f "$lib_src_real_pth" "$lib_dst_dir_pth/"||exit 1
-                                                            fi
+                                                            try_cp "$lib_src_real_pth" "$lib_dst_dir_pth/$lib_src_real_name"
                                                             if [[ "$lib_src_name" != "$lib_src_real_name" && ! -L "$lib_dst_pth" ]]
                                                                 then
-                                                                    (cd "$lib_dst_dir_pth"||exit 1
-                                                                    if [ ! -L "$lib_src_name" ]
-                                                                        then ln $varg -sf "$lib_src_real_name" "$lib_src_name"||exit 1
-                                                                    fi)||exit 1
+                                                                    (try_cd "$lib_dst_dir_pth"
+                                                                    try_ln "$lib_src_real_name" "$lib_src_name")||exit 1
                                                             fi
                                                         else
-                                                            if [ ! -f "$lib_dst_pth" ]
-                                                                then cp $varg -f "$lib_src_pth" "$lib_dst_dir_pth/"||exit 1
-                                                            fi
+                                                            try_cp "$lib_src_pth" "$lib_dst_dir_pth/$lib_src_name"
                                                 fi
-                                                repath_needed_libs "$lib_dst_pth"||exit 1
-                                                try_strip "$lib_dst_pth"||exit 1
+                                                repath_needed_libs "$lib_dst_pth"
+                                                try_strip "$lib_dst_pth"
                                                 if [[ ! "$lib_dst_pth" =~ "$INTERPRETER" ]]
-                                                    then try_set_rpath "$lib_dst_pth"||exit 1
+                                                    then try_set_rpath "$lib_dst_pth"
                                                 fi
                                                 LIBRARIES["$lib_src_pth"]=1
                                         fi
                                 done
-                                if [[ "$LIBS_ONLY" != 1 && -n "$INTERPRETER" && "${BINARIES["$lib_src_pth"]}" != 1 ]]
+                                if [[ "$LIBS_ONLY" != 1 && -n "$INTERPRETER" && "$PATCH_INTERPRETER" == 1 ]]
                                     then
-                                        (cd "$bin_dir_pth"||exit 1
-                                        if [[ "$PATCH_INTERPRETER" == 1 && -f "../$lib_dir/$INTERPRETER" ]]
+                                        (try_cd "$bin_dir_pth"
+                                        if [ -f "../$lib_dir/$INTERPRETER" ]
                                             then
                                                 info_msg "$YELLOW[ SET INTERPRETER ]: $BLUE[$bin_dir_pth/$binary_name -> ../$lib_dir/$INTERPRETER]"
-                                                patchelf --set-interpreter "../$lib_dir/$INTERPRETER" "$binary_name"||exit 1
+                                                patchelf $pvarg --set-interpreter "../$lib_dir/$INTERPRETER" "$binary_name"||exit 1
                                         fi)||exit 1
                                 fi
                                 info_msg "[ DONE ]"
@@ -473,7 +507,7 @@ if [ "$GEN_LIB_PATH" == 1 ]
     then
         for dst_dir in "${!DST_DIRS[@]}"
             do
-                (cd "$dst_dir"||exit 1
+                (try_cd "$dst_dir"
                 for lib_dir in lib lib32
                     do
                         if [ -d "$lib_dir" ]

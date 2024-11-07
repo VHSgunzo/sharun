@@ -51,19 +51,20 @@ cp ./target/$(uname -m)-unknown-linux-musl/release/sharun .
 [ Usage ]: lib4bin [options] /path/executable
 
 [ Options ]:
-  -s, --strip              Strip binaries and libraries (env: STRIP)
-  -v, --verbose            Verbose mode (env: VERBOSE)
-  -d, --dst-dir '/path'    Destination directory (env: DST_DIR)
+  -s, --strip              Strip binaries and libraries (env: STRIP=1)
+  -v, --verbose            Verbose mode (env: VERBOSE=1)
+  -d, --dst-dir '/path'    Destination directory (env: DST_DIR=/path)
   -n, --not-one-dir        Separate directories for each executable (env: ONE_DIR=0)
-  -l, --libs-only          Pack only libraries (env: LIBS_ONLY)
-  -w, --with-sharun        Pack sharun from PATH or env or download (env: WITH_SHARUN, SHARUN, SHARUN_URL)
-  -p, --hard-links         Create hard links to sharun (env: HARD_LINKS)
-  -r, --patch-rpath        Patch RPATH to a relative path (env: PATCH_RPATH)
-  -g, --gen-lib-path       Generate a lib.path file (env: GEN_LIB_PATH)
-  -a, --any-executable     Pack any executable (env: ANY_EXECUTABLE)
-  -i, --patch-interpreter  Patch INTERPRETER to a relative path (env: PATCH_INTERPRETER)
-  -q, --quiet-mode         Show only errors (env: QUIET_MODE)
+  -l, --libs-only          Pack only libraries (env: LIBS_ONLY=1)
+  -p, --hard-links         Create hard links to sharun (env: HARD_LINKS=1)
+  -r, --patch-rpath        Patch RPATH to a relative path (env: PATCH_RPATH=1)
+  -g, --gen-lib-path       Generate a lib.path file (env: GEN_LIB_PATH=1)
+  -a, --any-executable     Pack any executable (env: ANY_EXECUTABLE=1)
+  -i, --patch-interpreter  Patch INTERPRETER to a relative path (env: PATCH_INTERPRETER=1)
+  -q, --quiet-mode         Show only errors (env: QUIET_MODE=1)
   -h, --help               Show this message
+  -w, --with-sharun        Pack sharun from PATH or env or download 
+  (env: WITH_SHARUN=1, SHARUN=/path|URL, SHARUN_URL=URL, UPX_SHARUN=1)
 ```
 
 ## Examples:
