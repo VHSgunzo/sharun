@@ -30,21 +30,22 @@ PATCH_INTERPRETER=${PATCH_INTERPRETER:=0}
 GIT_SHARUN_RELEASES='https://github.com/VHSgunzo/sharun/releases'
 
 usage() {
-    echo -e "$YELLOW[ Usage ]: ${GREEN}$(basename "$0") ${RED}[options] ${BLUE}/path/executable$RESETCOLOR\n"
-    echo "Options:"
-    echo "  -s, --strip              Strip binaries and libraries (env: STRIP=1)"
-    echo "  -v, --verbose            Verbose mode (env: VERBOSE=1) "
-    echo "  -d, --dst-dir '/path'    Destination directory (env: DST_DIR=/path)"
-    echo "  -n, --not-one-dir        Separate directories for each executable (env: ONE_DIR=0)"
-    echo "  -l, --libs-only          Pack only libraries (env: LIBS_ONLY=1)"
-    echo "  -w, --with-sharun        Pack sharun from PATH or env or download (env: WITH_SHARUN=1, SHARUN=/sharun)"
-    echo "  -p, --hard-links         Create hard links to sharun (env: HARD_LINKS=1)"
-    echo "  -r, --patch-rpath        Patch RPATH to a relative path (env: PATCH_RPATH=1)"
-    echo "  -g, --gen-lib-path       Generate a lib.path file (env: GEN_LIB_PATH=1)"
-    echo "  -a, --any-executable     Pack any executable (env: ANY_EXECUTABLE=1)"
-    echo "  -i, --patch-interpreter  Patch INTERPRETER to a relative path (env: PATCH_INTERPRETER=1)"
-    echo "  -q, --quiet-mode         Show only errors (env: QUIET_MODE=1)"
-    echo "  -h, --help               Show this message"
+    echo -e "[ Usage ]: lib4bin [options] /path/executable
+
+[ Options ]:
+    -s, --strip              Strip binaries and libraries (env: STRIP)
+    -v, --verbose            Verbose mode (env: VERBOSE)
+    -d, --dst-dir '/path'    Destination directory (env: DST_DIR)
+    -n, --not-one-dir        Separate directories for each executable (env: ONE_DIR=0)
+    -l, --libs-only          Pack only libraries (env: LIBS_ONLY)
+    -w, --with-sharun        Pack sharun from PATH or env or download (env: WITH_SHARUN, SHARUN, SHARUN_URL)
+    -p, --hard-links         Create hard links to sharun (env: HARD_LINKS)
+    -r, --patch-rpath        Patch RPATH to a relative path (env: PATCH_RPATH)
+    -g, --gen-lib-path       Generate a lib.path file (env: GEN_LIB_PATH)
+    -a, --any-executable     Pack any executable (env: ANY_EXECUTABLE)
+    -i, --patch-interpreter  Patch INTERPRETER to a relative path (env: PATCH_INTERPRETER)
+    -q, --quiet-mode         Show only errors (env: QUIET_MODE)
+    -h, --help               Show this message"
     exit 1
 }
 
@@ -76,7 +77,7 @@ check_deps() {
     for bin in "${binaries[@]}"
         do
             if ! is_exe_exist $bin
-                then 
+                then
                     error_msg "$BLUE[$bin]$YELLOW not found!"
                     ret=1
             fi
@@ -337,13 +338,20 @@ for binary in "${BINARY_LIST[@]}"
                                         fi
                                         if [[ "$WITH_SHARUN" == 1 && ! -e "${DST_DIR}/sharun" ]]
                                             then
+                                                TMP_SHARUN="/tmp/$(uname -m)/sharun"
                                                 SHARUN="${SHARUN:="$(readlink -f "$(which_exe sharun)")"}"
-                                                SHARUN="${SHARUN:="/tmp/$(uname -m)/sharun"}"
+                                                SHARUN="${SHARUN:="$TMP_SHARUN"}"
                                                 if [ ! -x "$SHARUN" ]
                                                     then
+                                                        if grep -q '^http'<<<"$SHARUN"
+                                                            then
+                                                                SHARUN_URL="$SHARUN"
+                                                                SHARUN="$TMP_SHARUN"
+                                                        fi
+                                                        SHARUN_URL="${SHARUN_URL:="$(get_sharun_git_url)"}"
                                                         info_msg "Downloading sharun -> '$SHARUN'..."
-                                                        info_msg "$(get_sharun_git_url)"
-                                                        if try_dl "$(get_sharun_git_url)" "$SHARUN"
+                                                        info_msg "$SHARUN_URL"
+                                                        if try_dl "$SHARUN_URL" "$SHARUN"
                                                             then chmod $varg +x "$SHARUN"
                                                             else
                                                                 error_msg "Failed to download sharun!"

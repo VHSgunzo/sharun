@@ -103,31 +103,24 @@ fn gen_library_path(library_path: &mut String) -> i32 {
     }
 }
 
-fn strip_str(str: &str) -> String {
-    str.lines()
-    .map(|line| line.trim_start())
-    .collect::<Vec<_>>()
-    .join("\n")
-}
-
 fn print_usage() {
-    println!("{}", strip_str(&format!("[ {} ]
-        |
-        [ Usage ]: {SHARUN_NAME} [OPTIONS] [EXEC ARGS]...
-        |  Use lib4bin for create 'bin' and 'shared' dirs
-        |
-        [ Arguments ]:
-        |  [EXEC ARGS]...          Command line arguments for execution
-        |
-        [ Options ]:
-        |   l,  lib4bin [ARGS]     Launch the built-in lib4bin
-        |  -g,  --gen-lib-path     Generate library path file
-        |  -v,  --version          Print version
-        |  -h,  --help             Print help
-        |
-        [ Environments ]:
-        |  SHARUN_LDNAME=ld.so     Specifies the name of the interpreter",
-    env!("CARGO_PKG_DESCRIPTION"))));
+    println!("[ {} ]
+
+[ Usage ]: {SHARUN_NAME} [OPTIONS] [EXEC ARGS]...
+    Use lib4bin for create 'bin' and 'shared' dirs
+
+[ Arguments ]:
+    [EXEC ARGS]...          Command line arguments for execution
+
+[ Options ]:
+     l,  lib4bin [ARGS]     Launch the built-in lib4bin
+    -g,  --gen-lib-path     Generate library path file
+    -v,  --version          Print version
+    -h,  --help             Print help
+
+[ Environments ]:
+    SHARUN_LDNAME=ld.so     Specifies the name of the interpreter",
+    env!("CARGO_PKG_DESCRIPTION"));
 }
 
 fn main() {
