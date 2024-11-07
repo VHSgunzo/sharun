@@ -179,7 +179,7 @@ is_net_conn() {
     if is_exe_exist nc
         then nc -zw1 github.com 443 &>/dev/null
     elif is_exe_exist ping
-        then ping -c 1 github.com &>/dev/null
+        then ping -c 2 github.com &>/dev/null
     elif is_exe_exist curl
         then curl -Ifs github.com &>/dev/null
     elif is_exe_exist wget
