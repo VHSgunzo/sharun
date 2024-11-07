@@ -34,6 +34,7 @@ cargo build --release
 |  [EXEC ARGS]...          Command line arguments for execution
 |
 [ Options ]:
+|   l,  lib4bin [ARGS]     Launch the built-in lib4bin
 |  -g,  --gen-lib-path     Generate library path file
 |  -v,  --version          Print version
 |  -h,  --help             Print help
@@ -52,12 +53,13 @@ Options:
   -d, --dst-dir '/path'    Destination directory (env: DST_DIR=/path)
   -n, --not-one-dir        Separate directories for each executable (env: ONE_DIR=0)
   -l, --libs-only          Pack only libraries (env: LIBS_ONLY=1)
-  -w, --with-sharun        Pack sharun from PATH (env: WITH_SHARUN=1)
+  -w, --with-sharun        Pack sharun from PATH or env or download (env: WITH_SHARUN=1, SHARUN=/sharun)
   -p, --hard-links         Create hard links to sharun (env: HARD_LINKS=1)
   -r, --patch-rpath        Patch RPATH to a relative path (env: PATCH_RPATH=1)
   -g, --gen-lib-path       Generate a lib.path file (env: GEN_LIB_PATH=1)
   -a, --any-executable     Pack any executable (env: ANY_EXECUTABLE=1)
   -i, --patch-interpreter  Patch INTERPRETER to a relative path (env: PATCH_INTERPRETER=1)
+  -q, --quiet-mode         Show only errors (env: QUIET_MODE=1)
   -h, --help               Show this message
 ```
 
@@ -70,11 +72,11 @@ mkdir test && cd test
 cp ../target/x86_64-unknown-linux-musl/release/sharun .
 
 # run lib4bin with the paths to the binary files that you want to make portable
-../lib4bin --strip --gen-lib-path /bin/bash
+./sharun lib4bin --strip --gen-lib-path /bin/bash
 
 # or for correct /proc/self/exe you can use HARD_LINKS=1
-../lib4bin --hard-links --strip --gen-lib-path /bin/bash
-# this ^ will create hard links to 'sharun' in the 'bin' directory
+./sharun lib4bin --hard-links --strip --gen-lib-path /bin/bash
+# this will create hard links to 'sharun' in the 'bin' directory
 
 # now you can move 'test' dir to other linux system and run binaries from the 'bin' dir
 ./bin/bash --version

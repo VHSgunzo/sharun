@@ -13,12 +13,13 @@ YELLOW='\033[1;33m'
 RESETCOLOR='\033[1;00m'
 
 ONE_DIR=${ONE_DIR:=1}
-DST_DIR=${DST_DIR:=.}
+DST_DIR="${DST_DIR:=.}"
 CREATE_LINKS=${CREATE_LINKS:=1}
 
 STRIP=${STRIP:=0}
 VERBOSE=${VERBOSE:=0}
 LIBS_ONLY=${LIBS_ONLY:=0}
+QUIET_MODE=${QUIET_MODE:=0}
 HARD_LINKS=${HARD_LINKS:=0}
 WITH_SHARUN=${WITH_SHARUN:=0}
 PATCH_RPATH=${PATCH_RPATH:=0}
@@ -26,6 +27,7 @@ GEN_LIB_PATH=${GEN_LIB_PATH:=0}
 ANY_EXECUTABLE=${ANY_EXECUTABLE:=0}
 PATCH_INTERPRETER=${PATCH_INTERPRETER:=0}
 # BINARY_LIST=('/path/executable' '/path/executable')
+GIT_SHARUN_RELEASES='https://github.com/VHSgunzo/sharun/releases'
 
 usage() {
     echo -e "$YELLOW[ Usage ]: ${GREEN}$(basename "$0") ${RED}[options] ${BLUE}/path/executable$RESETCOLOR\n"
@@ -35,28 +37,50 @@ usage() {
     echo "  -d, --dst-dir '/path'    Destination directory (env: DST_DIR=/path)"
     echo "  -n, --not-one-dir        Separate directories for each executable (env: ONE_DIR=0)"
     echo "  -l, --libs-only          Pack only libraries (env: LIBS_ONLY=1)"
-    echo "  -w, --with-sharun        Pack sharun from PATH (env: WITH_SHARUN=1)"
+    echo "  -w, --with-sharun        Pack sharun from PATH or env or download (env: WITH_SHARUN=1, SHARUN=/sharun)"
     echo "  -p, --hard-links         Create hard links to sharun (env: HARD_LINKS=1)"
     echo "  -r, --patch-rpath        Patch RPATH to a relative path (env: PATCH_RPATH=1)"
     echo "  -g, --gen-lib-path       Generate a lib.path file (env: GEN_LIB_PATH=1)"
     echo "  -a, --any-executable     Pack any executable (env: ANY_EXECUTABLE=1)"
     echo "  -i, --patch-interpreter  Patch INTERPRETER to a relative path (env: PATCH_INTERPRETER=1)"
+    echo "  -q, --quiet-mode         Show only errors (env: QUIET_MODE=1)"
     echo "  -h, --help               Show this message"
     exit 1
 }
 
+error_msg() {
+    echo -e "${RED}[ ERROR ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
+    return 1
+}
+
+info_msg() {
+    if [ "$QUIET_MODE" != 1 ]
+        then echo -e "${GREEN}[ INFO ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
+    fi
+}
+
+skip_msg() {
+    if [ "$QUIET_MODE" != 1 ]
+        then echo -e "${YELLOW}[ SKIPPED ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
+    fi
+}
+
+which_exe() { command -v "$@" ; }
+
+is_exe_exist() { which_exe "$@" &>/dev/null ; }
+
 check_deps() {
-    local ret=0
     local binaries=(file patchelf find grep sed)
     [ "$STRIP" == 1 ] && binaries+=(strip)
     for bin in "${binaries[@]}"
-        do ! command -v $bin &>/dev/null && \
-        echo -e "$RED[ ERROR ]: $BLUE[$bin]$YELLOW not found!$RESETCOLOR" && \
-        ret=1
+        do
+            if ! is_exe_exist $bin
+                then error_msg "$BLUE[$bin]$YELLOW not found!"
+            fi
     done
-    if [ "$ret" != 0 ]
+    if [ "$?" != 0 ]
         then
-            echo -e "${GREEN}You need to install lib4bin dependencies: ${BLUE}file binutils patchelf findutils grep sed coreutils$RESETCOLOR"
+            info_msg "You need to install lib4bin dependencies: ${BLUE}file binutils patchelf findutils grep sed coreutils"
             exit 1
     fi
 }
@@ -64,7 +88,7 @@ check_deps() {
 try_strip() {
     if [ "$STRIP" == 1 ]
         then
-            echo -e "$YELLOW[ STRIP ]: $BLUE[$1]$RESETCOLOR"
+            info_msg "$YELLOW[ STRIP ]: $BLUE[$1]"
             strip -s -R .comment --strip-unneeded "$1"
     fi
 }
@@ -72,7 +96,7 @@ try_strip() {
 try_set_rpath() {
     if [ "$PATCH_RPATH" == 1 ]
         then
-            echo -e "$YELLOW[ SET RPATH ]: $BLUE[$1]$RESETCOLOR"
+            info_msg "$YELLOW[ SET RPATH ]: $BLUE[$1]"
             patchelf --set-rpath '$ORIGIN/../lib:$ORIGIN/../lib32' "$1"
     fi
 }
@@ -107,13 +131,109 @@ repath_needed_libs() {
             for lib in $patch_needed_libs
                 do
                     local relib="$(basename "$lib")"
-                    echo -e "$YELLOW[ REPATH NEEDED ]: $BLUE[$lib -> $relib]$RESETCOLOR"
+                    info_msg "$YELLOW[ REPATH ]: $BLUE[$lib -> $relib]"
                     patchelf --replace-needed "$lib" "$relib" "$1"
             done
     fi
 }
 
-find_so() { find "$@" -name '*.so' -o -name '*.so.*' 2>/dev/null; }
+try_mkdir() {
+    if [ ! -d "$1" ]
+        then mkdir $varg -p "$1"||exit 1
+    fi
+}
+
+find_so() { find "$@" -name '*.so' -o -name '*.so.*' 2>/dev/null ; }
+
+check_url_stat_code() {
+    set -o pipefail
+    if is_exe_exist curl
+        then curl -sL -o /dev/null -I -w "%{http_code}" "$@" 2>/dev/null
+    elif is_exe_exist wget
+        then wget --no-check-certificate --server-response \
+                --spider "$@"|& awk '/^  HTTP/{print$2}'|tail -1
+    else return 1
+    fi
+}
+
+get_sharun_git_url() {
+    echo "${GIT_SHARUN_RELEASES}/download/$(NO_ARIA2C=1 try_dl "${GIT_SHARUN_RELEASES}/latest" \
+        /dev/stdout 2>/dev/null|grep -m1 "Release v.*"|awk '{print$2}')/sharun-$(uname -m)"
+
+}
+
+is_url() {
+    [ ! -n "$1" ] && \
+        return 1
+    if [ -n "$2" ]
+        then [ "$(check_url_stat_code "$1")" == "$2" ]
+        else [ "$(check_url_stat_code "$1")" == "200" ]
+    fi
+}
+
+is_net_conn() {
+    if is_exe_exist nc
+        then nc -zw1 github.com 443 &>/dev/null
+    elif is_exe_exist ping
+        then ping -c 1 github.com &>/dev/null
+    elif is_exe_exist curl
+        then curl -Ifs github.com &>/dev/null
+    elif is_exe_exist wget
+        then wget -q --spider github.com &>/dev/null
+    else return 1
+    fi
+}
+
+try_dl() {
+    if is_net_conn
+        then
+            if [ -n "$1" ]
+                then
+                    URL="$1"
+                    if [ -n "$2" ]
+                        then
+                            if [ -d "$2" ]
+                                then
+                                    FILEDIR="$2"
+                                    FILENAME="$(basename "$1")"
+                                else
+                                    FILEDIR="$(dirname "$2")"
+                                    FILENAME="$(basename "$2")"
+                            fi
+                        else
+                            FILEDIR="."
+                            FILENAME="$(basename "$1")"
+                    fi
+                    if is_url "$URL"
+                        then
+                            WGET_ARGS=(-q --no-check-certificate -t 3 -T 5 -w 0.5 "$URL" -O "$FILEDIR/$FILENAME")
+                            try_mkdir "$FILEDIR"
+                            if [ "$NO_ARIA2C" != 1 ] && is_exe_exist aria2c
+                                then
+                                    aria2c --no-conf -R -x 13 -s 13 --allow-overwrite -d "$FILEDIR" -o "$FILENAME" "$URL"
+                            elif is_exe_exist curl
+                                then
+                                    curl -R --progress-bar --insecure --fail -L "$URL" -o "$FILEDIR/$FILENAME"
+                            elif is_exe_exist wget2
+                                then
+                                    wget2 --force-progress "${WGET_ARGS[@]}"
+                            elif is_exe_exist wget
+                                then
+                                    wget --show-progress "${WGET_ARGS[@]}"
+                            else
+                                error_msg "Downloader not found!"
+                            fi
+                        else
+                            error_msg "$FILENAME not found in $(echo "$URL"|awk -F/ '{print$3"/"$4}')"
+                    fi
+                else
+                    error_msg "Specify download URL!"
+            fi
+        else
+            error_msg "There is no internet connection!"
+    fi
+    return $?
+}
 
 while [[ "$#" -gt 0 ]]; do
     case $1 in
@@ -122,6 +242,7 @@ while [[ "$#" -gt 0 ]]; do
         -v|--verbose) VERBOSE=1; shift ;;
         -n|--not-one-dir) ONE_DIR=0; shift ;;
         -l|--libs-only) LIBS_ONLY=1; shift ;;
+        -q|--quiet-mode) QUIET_MODE=1; shift ;;
         -p|--hard-links) HARD_LINKS=1; shift ;;
         -w|--with-sharun) WITH_SHARUN=1; shift ;;
         -r|--patch-rpath) PATCH_RPATH=1; shift ;;
@@ -132,11 +253,11 @@ while [[ "$#" -gt 0 ]]; do
             if [[ -n "$2" && "$2" != -* ]]
                 then DST_DIR="$2"; shift 2
                 else
-                    echo -e "$RED[ ERROR ]: ${YELLOW}Option ${BLUE}$1 ${YELLOW}requires a non-empty argument!$RESETCOLOR\n"
+                    error_msg "${YELLOW}Option ${BLUE}$1 ${YELLOW}requires a non-empty argument!\n"
                     usage
             fi
             ;;
-         -*) echo "Unknown parameter: $1"; usage ;;
+         -*) error_msg "Unknown parameter: ${BLUE}$1\n"; usage ;;
         *) break ;;
     esac
 done
@@ -152,7 +273,7 @@ if [ ! -n "$BINARY_LIST" ]
             then
                 BINARY_LIST=("$@")
             else
-                echo -e "$RED[ ERROR ]: Specify the executable!$RESETCOLOR"
+                error_msg "Specify the executable!\n"
                 usage
         fi
 fi
@@ -162,12 +283,6 @@ ALL_LIBS="$(find_so \
     /usr/lib32 /lib /lib64 /lib32 \
     |sort -u \
 )"
-
-try_mkdir() {
-    if [ ! -d "$1" ]
-        then mkdir $varg -p "$1"||exit 1
-    fi
-}
 
 binary_number=1
 declare -A DST_DIRS
@@ -202,7 +317,7 @@ for binary in "${BINARY_LIST[@]}"
                 IS_ELF="$(grep -o 'ELF '<<<"$FILE_INFO")"
                 IS_ELF32="$(grep -q 'ELF 32-bit'<<<"$FILE_INFO")"
                 IS_EXECUTABLE="$(grep -o 'executable'<<<"$FILE_INFO")"
-                echo -e "$YELLOW[ $binary_number ]: $BLUE[$binary_name] ${GREEN}...$RESETCOLOR"
+                info_msg "$YELLOW[ $binary_number ]: $BLUE[$binary_name] ${GREEN}..."
                 if [ -n "$IS_EXECUTABLE" ] && [[ "$ANY_EXECUTABLE" == 1 || -n "$IS_ELF" ]]
                     then
                         # strace -f -e trace=openat "$binary_src_pth"|& grep '/lib.*\.so'|grep -v ENOENT|\
@@ -219,13 +334,31 @@ for binary in "${BINARY_LIST[@]}"
                                         fi
                                         if [[ "$WITH_SHARUN" == 1 && ! -e "${DST_DIR}/sharun" ]]
                                             then
-                                                which_sharun="$(readlink -f "$(command -v sharun)")"
-                                                 if [ -n "$which_sharun" ]
+                                                SHARUN="${SHARUN:="$(readlink -f "$(which_exe sharun)")"}"
+                                                SHARUN="${SHARUN:="/tmp/$(uname -m)/sharun"}"
+                                                if [ ! -e "$SHARUN" ]
+                                                    then
+                                                        info_msg "Downloading sharun -> '$SHARUN'..."
+                                                        info_msg "$(get_sharun_git_url)"
+                                                        if try_dl "$(get_sharun_git_url)" "$SHARUN"
+                                                            then
+                                                                chmod $varg +x "$SHARUN"
+                                                                if ! "$SHARUN" --version &>/dev/null
+                                                                    then
+                                                                        error_msg "Failed to check sharun version!"
+                                                                        exit 1
+                                                                fi
+                                                            else
+                                                                error_msg "Failed to download sharun!"
+                                                                exit 1
+                                                        fi
+                                                fi
+                                                if [ -e "$SHARUN" ]
                                                     then
                                                         try_mkdir "$DST_DIR"
-                                                        cp $varg -f "$which_sharun" "${DST_DIR}/sharun"||exit 1
+                                                        cp $varg -f "$SHARUN" "${DST_DIR}/sharun"||exit 1
                                                     else
-                                                        echo -e "$RED[ ERROR ]: sharun not found in PATH!$RESETCOLOR"
+                                                        error_msg "sharun not found!"
                                                         exit 1
                                                 fi
                                         fi
@@ -314,17 +447,17 @@ for binary in "${BINARY_LIST[@]}"
                                         (cd "$bin_dir_pth"||exit 1
                                         if [[ "$PATCH_INTERPRETER" == 1 && -f "../$lib_dir/$INTERPRETER" ]]
                                             then
-                                                echo -e "$YELLOW[ SET INTERPRETER ]: $BLUE[$bin_dir_pth/$binary_name -> ../$lib_dir/$INTERPRETER]$RESETCOLOR"
+                                                info_msg "$YELLOW[ SET INTERPRETER ]: $BLUE[$bin_dir_pth/$binary_name -> ../$lib_dir/$INTERPRETER]"
                                                 patchelf --set-interpreter "../$lib_dir/$INTERPRETER" "$binary_name"||exit 1
                                         fi)||exit 1
                                 fi
-                                echo -e "$GREEN[ DONE ]$RESETCOLOR"
+                                info_msg "[ DONE ]"
                                 binary_number=$(( $binary_number + 1 ))
                             else
-                                echo -e "$YELLOW[ SKIPPED ]: $BLUE[$binary_src_pth]$YELLOW executable not dynamically linked!$RESETCOLOR"
+                                skip_msg "$BLUE[$binary_src_pth]$YELLOW executable not dynamically linked!"
                         fi
                     else
-                        echo -e "$YELLOW[ SKIPPED ]: $BLUE[$binary_src_pth]$YELLOW not ELF executable!$RESETCOLOR"
+                        skip_msg "$BLUE[$binary_src_pth]$YELLOW not ELF executable!"
                 fi
                 BINARIES["$binary_src_pth"]=1
         fi
@@ -340,7 +473,7 @@ if [ "$GEN_LIB_PATH" == 1 ]
                     do
                         if [ -d "$lib_dir" ]
                             then
-                                echo -e "$YELLOW[ GEN LIB PATH ]: $BLUE[${dst_dir}/${lib_dir}/lib.path]$RESETCOLOR" && \
+                                info_msg "$YELLOW[ GEN LIB PATH ]: $BLUE[${dst_dir}/${lib_dir}/lib.path]" && \
                                 find_so "$lib_dir"|xargs -I {} dirname "{}"|\
                                 sort -u|sed "s|$lib_dir|+|g" > "$lib_dir/lib.path"||exit 1
                         fi
