@@ -497,14 +497,17 @@ for binary in "${BINARY_LIST[@]}"
                                                 LIBRARIES["$lib_src_pth"]=1
                                         fi
                                 done
-                                if [[ "$LIBS_ONLY" != 1 && -n "$INTERPRETER" && "$PATCH_INTERPRETER" == 1 ]]
+                                if [[ -n "$INTERPRETER" && "$PATCH_INTERPRETER" == 1 ]]
                                     then
-                                        (try_cd "$bin_dir_pth"
-                                        if [ -f "../$lib_dir/$INTERPRETER" ]
+                                        if [ "$LIBS_ONLY" != 1 ]
                                             then
-                                                info_msg "$YELLOW[ SET INTERPRETER ]: $BLUE[$bin_dir_pth/$binary_name -> ../$lib_dir/$INTERPRETER]"
-                                                patchelf $pvarg --set-interpreter "../$lib_dir/$INTERPRETER" "$binary_name"||exit 1
-                                        fi)||exit 1
+                                                (try_cd "$bin_dir_pth"
+                                                if [ -f "../$lib_dir/$INTERPRETER" ]
+                                                    then
+                                                        info_msg "$YELLOW[ SET INTERPRETER ]: $BLUE[$bin_dir_pth/$binary_name -> ../$lib_dir/$INTERPRETER]"
+                                                        patchelf $pvarg --set-interpreter "../$lib_dir/$INTERPRETER" "$binary_name"||exit 1
+                                                fi)||exit 1
+                                        fi
                                         sed -i 's|/usr|/xxx|g;s|/lib|/XXX|g;s|/etc|/EEE|g' "${dst_dir}/shared/$lib_dir/$INTERPRETER"||exit 1
                                 fi
                                 info_msg "[ DONE ]"
