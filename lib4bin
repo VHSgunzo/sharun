@@ -126,22 +126,21 @@ get_libs() {
             sleep $STRACE_TIME
             local pids="$(cut -d ' ' -f1<"$libs_file"|sort -u)"
             kill $pids 2>/dev/null
-            local libs="$(sed '/.*nvidia.*/d;/ENOENT/d'<"$libs_file"|\
-                          grep -oP '".*lib.*\.so.*"'|sed -u 's|"||g')"
+            local libs="$(echo -e "$(sed '/.*nvidia.*/d;/ENOENT/d'<"$libs_file"|\
+                          grep -oP '".*lib.*\.so.*"'|sed -u 's|"||g')")\n"
             rm -f "$libs_file"
-        else
-            [ -n "$2" ] && local needed_libs="$2"||\
-            local needed_libs="$(print_needed "$1")"
-            local libs="$(([ -z "$needed_libs" ]||\
-                grep -E "$(tr '\n' '|'<<<"$needed_libs"|sed 's|\||$\||g')libpthread.so.0$"<<<"$ALL_LIBS" ; \
-                ldd_libs "$1")|sort -u)"
-            [ -n "$IS_ELF32" ] && \
-            local libs="$(grep -vE '/lib/|/lib64/|/x86_64-linux-gnu/'<<<"$libs")"||\
-            local libs="$(grep -vE '/lib32|/i386-linux-gnu'<<<"$libs")"
-            for lib in $libs
-                do local libs4libs="$(echo -e "$(ldd_libs "$lib")\n$libs4libs")"
-            done
     fi
+    [ -n "$2" ] && local needed_libs="$2"||\
+    local needed_libs="$(print_needed "$1")"
+    local libs+="$(([ -z "$needed_libs" ]||\
+        grep -E "$(tr '\n' '|'<<<"$needed_libs"|sed 's|\||$\||g')libpthread.so.0$"<<<"$ALL_LIBS" ; \
+        ldd_libs "$1")|sort -u)"
+    [ -n "$IS_ELF32" ] && \
+    local libs="$(grep -vE '/lib/|/lib64/|/x86_64-linux-gnu/'<<<"$libs")"||\
+    local libs="$(grep -vE '/lib32|/i386-linux-gnu'<<<"$libs")"
+    for lib in $libs
+        do local libs4libs="$(echo -e "$(ldd_libs "$lib")\n$libs4libs")"
+    done
     echo -e "$libs\n$libs4libs"|sort -u|sed '/^$/d'
 }
 
