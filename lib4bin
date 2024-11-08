@@ -508,7 +508,7 @@ for binary in "${BINARY_LIST[@]}"
                                                         patchelf $pvarg --set-interpreter "../$lib_dir/$INTERPRETER" "$binary_name"||exit 1
                                                 fi)||exit 1
                                         fi
-                                        sed -i 's|/usr|/xxx|g;s|/lib|/XXX|g;s|/etc|/EEE|g' "${dst_dir}/shared/$lib_dir/$INTERPRETER"||exit 1
+                                        # sed -i 's|/usr|/xxx|g;s|/lib|/XXX|g;s|/etc|/EEE|g' "${dst_dir}/shared/$lib_dir/$INTERPRETER"||exit 1
                                 fi
                                 info_msg "[ DONE ]"
                                 binary_number=$(( $binary_number + 1 ))
