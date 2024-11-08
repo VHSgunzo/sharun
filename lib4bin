@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 
-# deps: apt update && apt install bash file binutils patchelf findutils grep sed coreutils -y
-# deps: apk add bash file binutils patchelf findutils grep sed coreutils
-# deps: dnf install bash file binutils patchelf findutils grep sed coreutils -y
-# deps: pacman -Sy bash file binutils patchelf findutils grep sed coreutils --noconfirm
-# deps: xbps-install -Sy bash file binutils patchelf findutils grep sed coreutils
+# deps: apt update && apt install bash file binutils patchelf findutils grep sed coreutils strace -y
+# deps: apk add bash file binutils patchelf findutils grep sed coreutils strace
+# deps: dnf install bash file binutils patchelf findutils grep sed coreutils strace -y
+# deps: pacman -Sy bash file binutils patchelf findutils grep sed coreutils strace --noconfirm
+# deps: xbps-install -Sy bash file binutils patchelf findutils grep sed coreutils strace
 
 RED='\033[1;91m'
 BLUE='\033[1;94m'
@@ -23,6 +23,8 @@ QUIET_MODE=${QUIET_MODE:=0}
 HARD_LINKS=${HARD_LINKS:=0}
 WITH_SHARUN=${WITH_SHARUN:=0}
 PATCH_RPATH=${PATCH_RPATH:=0}
+STRACE_MODE=${STRACE_MODE:=0}
+STRACE_TIME=${STRACE_TIME:=5}
 GEN_LIB_PATH=${GEN_LIB_PATH:=0}
 ANY_EXECUTABLE=${ANY_EXECUTABLE:=0}
 PATCH_INTERPRETER=${PATCH_INTERPRETER:=0}
@@ -45,6 +47,7 @@ usage() {
     -a, --any-executable     Pack any executable (env: ANY_EXECUTABLE=1)
     -i, --patch-interpreter  Patch INTERPRETER to a relative path (env: PATCH_INTERPRETER=1)
     -q, --quiet-mode         Show only errors (env: QUIET_MODE=1)
+    -e, --strace-mode        Use strace for get libs (env: STRACE_MODE=1, STRACE_TIME=5)
     -h, --help               Show this message
     -w, --with-sharun        Pack sharun from PATH or env or download
     (env: WITH_SHARUN=1, SHARUN=/path|URL, SHARUN_URL=URL, UPX_SHARUN=1)"
@@ -75,7 +78,8 @@ is_exe_exist() { which_exe "$@" &>/dev/null ; }
 check_deps() {
     local ret=0
     local binaries=(file patchelf find grep sed)
-    [ "$STRIP" == 1 ] && binaries+=(strip)
+    [ "$STRIP" != 1 ]||binaries+=(strip)
+    [ "$STRACE_MODE" != 1 ]||binaries+=(strace)
     for bin in "${binaries[@]}"
         do
             if ! is_exe_exist $bin
@@ -86,7 +90,7 @@ check_deps() {
     done
     if [ "$ret" != 0 ]
         then
-            info_msg "You need to install ${BLUE}lib4bin${GREEN} dependencies: ${BLUE}file binutils patchelf findutils grep sed coreutils"
+            info_msg "You need to install ${BLUE}lib4bin${GREEN} dependencies: ${BLUE}file binutils patchelf findutils grep sed coreutils strace"
             exit 1
     fi
 }
@@ -114,17 +118,30 @@ ldd_libs() {
 }
 
 get_libs() {
-    [ -n "$2" ] && local needed_libs="$2"||\
-    local needed_libs="$(print_needed "$1")"
-    local libs="$(([ -z "$needed_libs" ]||\
-        grep -E "$(tr '\n' '|'<<<"$needed_libs"|sed 's|\||$\||g')libpthread.so.0$"<<<"$ALL_LIBS" ; \
-        ldd_libs "$1")|sort -u)"
-    [ -n "$IS_ELF32" ] && \
-    local libs="$(grep -vE '/lib/|/lib64/|/x86_64-linux-gnu/'<<<"$libs")"||\
-    local libs="$(grep -vE '/lib32|/i386-linux-gnu'<<<"$libs")"
-    for lib in $libs
-        do local libs4libs="$(echo -e "$(ldd_libs "$lib")\n$libs4libs")"
-    done
+    unset libs libs4libs
+    if [ "$STRACE_MODE" == 1 ]
+        then
+            local libs_file="/tmp/libs.$$"
+            strace -f -e trace=openat --always-show-pid -o "$libs_file" "$1" &>/dev/null &
+            sleep $STRACE_TIME
+            local pids="$(cut -d ' ' -f1<"$libs_file"|sort -u)"
+            kill $pids 2>/dev/null
+            local libs="$(sed '/.*nvidia.*/d;/ENOENT/d'<"$libs_file"|\
+                          grep -oP '".*lib.*\.so.*"'|sed -u 's|"||g')"
+            rm -f "$libs_file"
+        else
+            [ -n "$2" ] && local needed_libs="$2"||\
+            local needed_libs="$(print_needed "$1")"
+            local libs="$(([ -z "$needed_libs" ]||\
+                grep -E "$(tr '\n' '|'<<<"$needed_libs"|sed 's|\||$\||g')libpthread.so.0$"<<<"$ALL_LIBS" ; \
+                ldd_libs "$1")|sort -u)"
+            [ -n "$IS_ELF32" ] && \
+            local libs="$(grep -vE '/lib/|/lib64/|/x86_64-linux-gnu/'<<<"$libs")"||\
+            local libs="$(grep -vE '/lib32|/i386-linux-gnu'<<<"$libs")"
+            for lib in $libs
+                do local libs4libs="$(echo -e "$(ldd_libs "$lib")\n$libs4libs")"
+            done
+    fi
     echo -e "$libs\n$libs4libs"|sort -u|sed '/^$/d'
 }
 
@@ -273,6 +290,7 @@ while [[ "$#" -gt 0 ]]; do
         -l|--libs-only) LIBS_ONLY=1; shift ;;
         -q|--quiet-mode) QUIET_MODE=1; shift ;;
         -p|--hard-links) HARD_LINKS=1; shift ;;
+        -e|--strace-mode) STRACE_MODE=1; shift ;;
         -w|--with-sharun) WITH_SHARUN=1; shift ;;
         -r|--patch-rpath) PATCH_RPATH=1; shift ;;
         -g|--gen-lib-path) GEN_LIB_PATH=1; shift ;;
@@ -356,8 +374,6 @@ for binary in "${BINARY_LIST[@]}"
                 info_msg "$YELLOW[ $binary_number ]: $BLUE[$binary_name] ${GREEN}..."
                 if [ -n "$IS_EXECUTABLE" ] && [[ "$ANY_EXECUTABLE" == 1 || -n "$IS_ELF" ]]
                     then
-                        # strace -f -e trace=openat "$binary_src_pth"|& grep '/lib.*\.so'|grep -v ENOENT|\
-                        # awk '{print$2}'|sed 's|^.||g;s|..$||g'|sort -u|xargs -I {} cp -f {} shared/lib/
                         needed_libs="$(print_needed "$binary_src_pth")"
                         LIBS="$(get_libs "$binary_src_pth" "$needed_libs")"
                         if [[ -n "$LIBS" || "$ANY_EXECUTABLE" == 1 ]]
@@ -488,6 +504,7 @@ for binary in "${BINARY_LIST[@]}"
                                             then
                                                 info_msg "$YELLOW[ SET INTERPRETER ]: $BLUE[$bin_dir_pth/$binary_name -> ../$lib_dir/$INTERPRETER]"
                                                 patchelf $pvarg --set-interpreter "../$lib_dir/$INTERPRETER" "$binary_name"||exit 1
+                                                sed -i 's|/usr|/xxx|g;s|/lib|/XXX|g;s|/etc|/EEE|g' "${lib_dst_pth}/$INTERPRETER"||exit 1
                                         fi)||exit 1
                                 fi
                                 info_msg "[ DONE ]"
@@ -507,14 +524,14 @@ if [ "$GEN_LIB_PATH" == 1 ]
     then
         for dst_dir in "${!DST_DIRS[@]}"
             do
-                (try_cd "$dst_dir"
-                for lib_dir in lib lib32
+                (for lib_dir in lib lib32
                     do
+                        lib_dir="${dst_dir}/${lib_dir}"
                         if [ -d "$lib_dir" ]
                             then
-                                info_msg "$YELLOW[ GEN LIB PATH ]: $BLUE[${dst_dir}/${lib_dir}/lib.path]" && \
+                                info_msg "$YELLOW[ GEN LIB PATH ]: $BLUE[${lib_dir}/lib.path]" && \
                                 find_so "$lib_dir"|xargs -I {} dirname "{}"|\
-                                sort -u|sed "s|$lib_dir|+|g" > "$lib_dir/lib.path"||exit 1
+                                sort -u|sed "s|${lib_dir}|+|g" > "${lib_dir}/lib.path"||exit 1
                         fi
                 done)||exit 1
         done

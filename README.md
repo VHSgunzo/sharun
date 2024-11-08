@@ -62,6 +62,7 @@ cp ./target/$(uname -m)-unknown-linux-musl/release/sharun .
   -a, --any-executable     Pack any executable (env: ANY_EXECUTABLE=1)
   -i, --patch-interpreter  Patch INTERPRETER to a relative path (env: PATCH_INTERPRETER=1)
   -q, --quiet-mode         Show only errors (env: QUIET_MODE=1)
+  -e, --strace-mode        Use strace for get libs (env: STRACE_MODE=1, STRACE_TIME=5)
   -h, --help               Show this message
   -w, --with-sharun        Pack sharun from PATH or env or download 
   (env: WITH_SHARUN=1, SHARUN=/path|URL, SHARUN_URL=URL, UPX_SHARUN=1)
