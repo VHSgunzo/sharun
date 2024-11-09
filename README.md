@@ -48,22 +48,22 @@ cp ./target/$(uname -m)-unknown-linux-musl/release/sharun .
 
 ## Usage lib4bin:
 ```
-[ Usage ]: lib4bin [options] /path/executable
+[ Usage ]: lib4bin [OPTIONS] /path/executable -- [STRACE CMD ARGS]
 
 [ Options ]:
+  -a, --any-executable     Pack any executable (env: ANY_EXECUTABLE=1)
+  -d, --dst-dir '/path'    Destination directory (env: DST_DIR=/path)
+  -e, --strace-mode        Use strace for get libs (env: STRACE_MODE=1, STRACE_TIME=5)
+  -g, --gen-lib-path       Generate a lib.path file (env: GEN_LIB_PATH=1)
+  -h, --help               Show this message
+  -i, --patch-interpreter  Patch INTERPRETER to a relative path (env: PATCH_INTERPRETER=1)
+  -l, --libs-only          Pack only libraries (env: LIBS_ONLY=1)
+  -n, --not-one-dir        Separate directories for each executable (env: ONE_DIR=0)
+  -p, --hard-links         Pack sharun and create hard links (env: HARD_LINKS=1)
+  -q, --quiet-mode         Show only errors (env: QUIET_MODE=1)
+  -r, --patch-rpath        Patch RPATH to a relative path (env: PATCH_RPATH=1)
   -s, --strip              Strip binaries and libraries (env: STRIP=1)
   -v, --verbose            Verbose mode (env: VERBOSE=1)
-  -d, --dst-dir '/path'    Destination directory (env: DST_DIR=/path)
-  -n, --not-one-dir        Separate directories for each executable (env: ONE_DIR=0)
-  -l, --libs-only          Pack only libraries (env: LIBS_ONLY=1)
-  -p, --hard-links         Create hard links to sharun (env: HARD_LINKS=1)
-  -r, --patch-rpath        Patch RPATH to a relative path (env: PATCH_RPATH=1)
-  -g, --gen-lib-path       Generate a lib.path file (env: GEN_LIB_PATH=1)
-  -a, --any-executable     Pack any executable (env: ANY_EXECUTABLE=1)
-  -i, --patch-interpreter  Patch INTERPRETER to a relative path (env: PATCH_INTERPRETER=1)
-  -q, --quiet-mode         Show only errors (env: QUIET_MODE=1)
-  -e, --strace-mode        Use strace for get libs (env: STRACE_MODE=1, STRACE_TIME=5)
-  -h, --help               Show this message
   -w, --with-sharun        Pack sharun from PATH or env or download 
   (env: WITH_SHARUN=1, SHARUN=/path|URL, SHARUN_URL=URL, UPX_SHARUN=1)
 ```
@@ -74,7 +74,7 @@ cp ./target/$(uname -m)-unknown-linux-musl/release/sharun .
 ./sharun lib4bin --with-sharun --dst-dir test /bin/bash
 
 # or for correct /proc/self/exe you can use --hard-links flag
-./sharun lib4bin --hard-links --with-sharun --dst-dir test /bin/bash
+./sharun lib4bin --hard-links --dst-dir test /bin/bash
 # this will create hard links from 'test/sharun' in the 'test/bin' directory
 
 # now you can move 'test' dir to other linux system and run binaries from the 'bin' dir

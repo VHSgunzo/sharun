@@ -33,22 +33,22 @@ PATCH_INTERPRETER=${PATCH_INTERPRETER:=0}
 GIT_SHARUN_RELEASES='https://github.com/VHSgunzo/sharun/releases'
 
 usage() {
-    echo -e "[ Usage ]: lib4bin [options] /path/executable
+    echo -e "[ Usage ]: lib4bin [OPTIONS] /path/executable -- [STRACE CMD ARGS]
 
 [ Options ]:
+    -a, --any-executable     Pack any executable (env: ANY_EXECUTABLE=1)
+    -d, --dst-dir '/path'    Destination directory (env: DST_DIR=/path)
+    -e, --strace-mode        Use strace for get libs (env: STRACE_MODE=1, STRACE_TIME=5)
+    -g, --gen-lib-path       Generate a lib.path file (env: GEN_LIB_PATH=1)
+    -h, --help               Show this message
+    -i, --patch-interpreter  Patch INTERPRETER to a relative path (env: PATCH_INTERPRETER=1)
+    -l, --libs-only          Pack only libraries (env: LIBS_ONLY=1)
+    -n, --not-one-dir        Separate directories for each executable (env: ONE_DIR=0)
+    -p, --hard-links         Pack sharun and create hard links (env: HARD_LINKS=1)
+    -q, --quiet-mode         Show only errors (env: QUIET_MODE=1)
+    -r, --patch-rpath        Patch RPATH to a relative path (env: PATCH_RPATH=1)
     -s, --strip              Strip binaries and libraries (env: STRIP=1)
     -v, --verbose            Verbose mode (env: VERBOSE=1)
-    -d, --dst-dir '/path'    Destination directory (env: DST_DIR=/path)
-    -n, --not-one-dir        Separate directories for each executable (env: ONE_DIR=0)
-    -l, --libs-only          Pack only libraries (env: LIBS_ONLY=1)
-    -p, --hard-links         Create hard links to sharun (env: HARD_LINKS=1)
-    -r, --patch-rpath        Patch RPATH to a relative path (env: PATCH_RPATH=1)
-    -g, --gen-lib-path       Generate a lib.path file (env: GEN_LIB_PATH=1)
-    -a, --any-executable     Pack any executable (env: ANY_EXECUTABLE=1)
-    -i, --patch-interpreter  Patch INTERPRETER to a relative path (env: PATCH_INTERPRETER=1)
-    -q, --quiet-mode         Show only errors (env: QUIET_MODE=1)
-    -e, --strace-mode        Use strace for get libs (env: STRACE_MODE=1, STRACE_TIME=5)
-    -h, --help               Show this message
     -w, --with-sharun        Pack sharun from PATH or env or download
     (env: WITH_SHARUN=1, SHARUN=/path|URL, SHARUN_URL=URL, UPX_SHARUN=1)"
     exit 1
@@ -122,7 +122,7 @@ get_libs() {
     if [ "$STRACE_MODE" == 1 ]
         then
             local libs_file="/tmp/libs.$$"
-            strace -f -e trace=openat --always-show-pid -o "$libs_file" "$1" &>/dev/null &
+            strace -f -e trace=openat --always-show-pid -o "$libs_file" "$1" "${STRACE_CMD_ARGS[@]}" &>/dev/null &
             sleep $STRACE_TIME
             local pids="$(cut -d ' ' -f1<"$libs_file"|sort -u)"
             kill $pids 2>/dev/null
@@ -308,6 +308,13 @@ while [[ "$#" -gt 0 ]]; do
     esac
 done
 
+if [ "$2" == '--' ]
+    then
+        STRACE_MODE=1
+        BINARY_LIST=("$1"); shift 2
+        STRACE_CMD_ARGS=("$@")
+fi
+
 check_deps
 
 if [ "$VERBOSE" == 1 ]
@@ -468,30 +475,36 @@ for binary in "${BINARY_LIST[@]}"
                                                 lib_src_name="$(basename "$lib_src_pth")"
                                                 grep -qE '/lib32|/i386-linux-gnu'<<<"$lib_src_dirname_pth" && \
                                                     lib_dir="lib32"||lib_dir="lib"
-                                                lib_dst_dir_pth="${dst_dir_pth}/${lib_dir}$(sed 's|^/usr||;s|^/lib64||;s|^/lib32||;s|^/lib||;s|^/i386-linux-gnu||;s|^/x86_64-linux-gnu||'<<<"$lib_src_dirname_pth")"
+                                                lib_dst_dir_pth="${dst_dir_pth}/${lib_dir}$(sed 's|^/usr||;s|^/opt||;s|^/lib64||;s|^/lib32||;s|^/lib||;s|^/i386-linux-gnu||;s|^/x86_64-linux-gnu||'<<<"$lib_src_dirname_pth")"
                                                 lib_dst_pth="$lib_dst_dir_pth/$lib_src_name"
-                                                try_mkdir "$lib_dst_dir_pth"
-                                                if [[ "$HARD_LINKS" == 1 && ! -L "${dst_dir}/${lib_dir}" ]]
+                                                if [[ "${LIBRARIES["$lib_dst_pth"]}" != 1 ]]||\
+                                                [[ -n "$lib_src_real_pth" && "${LIBRARIES["$lib_src_real_pth"]}" != 1 ]]
                                                     then
-                                                        (try_cd "$dst_dir"
-                                                        try_ln shared/$lib_dir $lib_dir)||exit 1
-                                                fi
-                                                if [ -n "$lib_src_real_pth" ]
-                                                        then
-                                                            lib_src_real_name="$(basename "$lib_src_real_pth")"
-                                                            try_cp "$lib_src_real_pth" "$lib_dst_dir_pth/$lib_src_real_name"
-                                                            if [[ "$lib_src_name" != "$lib_src_real_name" && ! -L "$lib_dst_pth" ]]
+                                                        try_mkdir "$lib_dst_dir_pth"
+                                                        if [[ "$HARD_LINKS" == 1 && ! -L "${dst_dir}/${lib_dir}" ]]
+                                                            then
+                                                                (try_cd "$dst_dir"
+                                                                try_ln shared/$lib_dir $lib_dir)||exit 1
+                                                        fi
+                                                        if [ -n "$lib_src_real_pth" ]
                                                                 then
-                                                                    (try_cd "$lib_dst_dir_pth"
-                                                                    try_ln "$lib_src_real_name" "$lib_src_name")||exit 1
-                                                            fi
-                                                        else
-                                                            try_cp "$lib_src_pth" "$lib_dst_dir_pth/$lib_src_name"
-                                                fi
-                                                repath_needed_libs "$lib_dst_pth"
-                                                try_strip "$lib_dst_pth"
-                                                if [[ ! "$lib_dst_pth" =~ "$INTERPRETER" ]]
-                                                    then try_set_rpath "$lib_dst_pth"
+                                                                    lib_src_real_name="$(basename "$lib_src_real_pth")"
+                                                                    try_cp "$lib_src_real_pth" "$lib_dst_dir_pth/$lib_src_real_name"
+                                                                    if [[ "$lib_src_name" != "$lib_src_real_name" && ! -L "$lib_dst_pth" ]]
+                                                                        then
+                                                                            (try_cd "$lib_dst_dir_pth"
+                                                                            try_ln "$lib_src_real_name" "$lib_src_name")||exit 1
+                                                                    fi
+                                                                    LIBRARIES["$lib_src_real_pth"]=1
+                                                                else
+                                                                    try_cp "$lib_src_pth" "$lib_dst_dir_pth/$lib_src_name"
+                                                        fi
+                                                        repath_needed_libs "$lib_dst_pth"
+                                                        try_strip "$lib_dst_pth"
+                                                        if [[ ! "$lib_dst_pth" =~ "$INTERPRETER" ]]
+                                                            then try_set_rpath "$lib_dst_pth"
+                                                        fi
+                                                        LIBRARIES["$lib_dst_pth"]=1
                                                 fi
                                                 LIBRARIES["$lib_src_pth"]=1
                                         fi
@@ -507,7 +520,9 @@ for binary in "${BINARY_LIST[@]}"
                                                         patchelf $pvarg --set-interpreter "../$lib_dir/$INTERPRETER" "$binary_name"||exit 1
                                                 fi)||exit 1
                                         fi
-                                        # sed -i 's|/usr|/xxx|g;s|/lib|/XXX|g;s|/etc|/EEE|g' "${dst_dir}/shared/$lib_dir/$INTERPRETER"||exit 1
+                                        interpreter_pth="${dst_dir}/shared/$lib_dir/$INTERPRETER"
+                                        info_msg "$YELLOW[ PATCH INTERPRETER ]: $BLUE[$interpreter_pth]"
+                                        sed -i 's|/usr|/xxx|g;s|/lib|/XXX|g;s|/etc|/EEE|g' "$interpreter_pth"||exit 1
                                 fi
                                 info_msg "[ DONE ]"
                                 binary_number=$(( $binary_number + 1 ))
