@@ -4,6 +4,7 @@ use std::{
     str::FromStr,
     collections::HashSet,
     path::{Path, PathBuf},
+    os::unix::process::CommandExt,
     process::{Command, Stdio, exit},
     io::{Read, Result, Error, Write},
     fs::{File, write, read_to_string}
@@ -67,9 +68,24 @@ fn is_elf32(file_path: &str) -> Result<bool> {
     Ok(buff[4] == 1)
 }
 
-fn gen_library_path(library_path: &mut String) -> i32 {
-    let lib_path_file = format!("{library_path}/lib.path");
-    let old_library_path = library_path.clone();
+fn get_env_var(var: &str) -> String {
+    if let Ok(val) = env::var(var) {
+        return val
+    }; "".into()
+}
+
+fn add_to_env(var: &str, dir: &str) {
+    let old_dir = get_env_var(var);
+    if !old_dir.contains(dir) {
+        if old_dir.is_empty() {
+            env::set_var(var, dir)
+        } else {
+            env::set_var(var, format!("{dir}:{old_dir}"))
+        }
+    }
+}
+
+fn gen_library_path(library_path: &mut String, lib_path_file: &String) {
     let mut added_dirs = HashSet::new();
     let mut new_paths = Vec::new();
     WalkDir::new(&mut *library_path)
@@ -89,17 +105,15 @@ fn gen_library_path(library_path: &mut String) -> i32 {
                 }
             }
         });
-    if !new_paths.is_empty() {
-        library_path.push(':');
-        library_path.push_str(&new_paths.join(":"))
-    }
-    if let Err(err) = write(&lib_path_file, &library_path
-        .replace(":", "\n")
-        .replace(&old_library_path, "+")
+    if let Err(err) = write(lib_path_file,
+        &format!("+:{}", &new_paths.join(":"))
+            .replace(":", "\n")
+            .replace(&*library_path, "+")
     ) {
-        eprintln!("Failed to write lib path: {lib_path_file}: {err}"); 1
+        eprintln!("Failed to write lib.path: {lib_path_file}: {err}");
+        exit(1)
     } else {
-        eprintln!("Write lib path: {lib_path_file}"); 0
+        eprintln!("Write lib.path: {lib_path_file}")
     }
 }
 
@@ -135,12 +149,14 @@ fn main() {
         sharun_dir = realpath(&lower_dir)
     }
 
-    let shared_dir = format!("{sharun_dir}/shared");
-    let shared_bin = format!("{shared_dir}/bin");
+    let bin_dir = &format!("{sharun_dir}/bin");
+    let shared_dir = &format!("{sharun_dir}/shared");
+    let shared_bin = &format!("{shared_dir}/bin");
     let shared_lib = format!("{shared_dir}/lib");
     let shared_lib32 = format!("{shared_dir}/lib32");
 
-    let mut bin_name = basename(&exec_args.remove(0));
+    let arg0 = &exec_args.remove(0);
+    let mut bin_name = basename(arg0);
     if bin_name == SHARUN_NAME {
         if exec_args.len() > 0 {
             match exec_args[0].as_str() {
@@ -153,13 +169,13 @@ fn main() {
                     return
                 }
                 "-g" | "--gen-lib-path" => {
-                    let mut ret = 1;
                     for mut library_path in [shared_lib, shared_lib32] {
                         if Path::new(&library_path).exists() {
-                            ret = gen_library_path(&mut library_path)
+                            let lib_path_file = &format!("{library_path}/lib.path");
+                            gen_library_path(&mut library_path, lib_path_file)
                         }
                     }
-                    exit(ret)
+                    return
                 }
                 "l" | "lib4bin" => {
                     exec_args.remove(0);
@@ -189,13 +205,63 @@ fn main() {
             }
         } else {
             eprintln!("Specify the executable from the 'shared/bin' dir!");
-            if let Ok(bin_dir) = Path::new(&shared_bin).read_dir() {
-                for bin in bin_dir {
+            if let Ok(dir) = Path::new(shared_bin).read_dir() {
+                for bin in dir {
                     println!("{}", bin.unwrap().file_name().to_str().unwrap())
                 }
             }
             exit(1)
         }
+    } else if bin_name == "AppRun" {
+        let appname_file = &format!("{sharun_dir}/AppName");
+        let mut appname: String = "".into();
+        if !Path::new(appname_file).exists() {
+            if let Ok(dir) = Path::new(&sharun_dir).read_dir() {
+                for entry in dir {
+                    if let Ok(entry) = entry {
+                        let path = entry.path();
+                        if path.is_file() {
+                            let name = entry.file_name();
+                            let name = name.to_str().unwrap();
+                            if name.ends_with(".desktop") {
+                                let data = read_to_string(path).unwrap_or_else(|err|{
+                                    eprintln!("Failed to read desktop file: {name}: {err}");
+                                    exit(1)
+                                });
+                                appname = data.split("\n").filter_map(|string| {
+                                    if string.starts_with("Exec=") {
+                                        Some(string.replace("Exec=", "").split_whitespace().next().unwrap_or("").to_string())
+                                    } else {None}
+                                }).next().unwrap_or_else(||"".into())
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if appname.is_empty() {
+            appname = read_to_string(appname_file).unwrap_or_else(|err|{
+                eprintln!("Failed to read AppName file: {appname_file}: {err}");
+                exit(1)
+            })
+        }
+
+        appname =  basename(appname.trim())
+        .replace("'", "").replace("\"", "");
+        let app = &format!("{bin_dir}/{appname}");
+
+        if get_env_var("ARGV0").is_empty() {
+            env::set_var("ARGV0", arg0)
+        }
+        env::set_var("APPDIR", sharun_dir);
+
+        let err = Command::new(app)
+            .envs(env::vars())
+            .args(exec_args)
+            .exec();
+        eprintln!("Failed to run App: {app}: {err}");
+        exit(1)
     }
     let bin = format!("{shared_bin}/{bin_name}");
 
@@ -212,17 +278,155 @@ fn main() {
     }
 
     let interpreter = get_interpreter(&library_path).unwrap_or_else(|_|{
-        eprintln!("The interpreter was not found!");
+        eprintln!("Interpreter not found!");
         exit(1)
     });
 
-    let lib_path_file = format!("{library_path}/lib.path");
-    if Path::new(&lib_path_file).exists() {
-        library_path = read_to_string(lib_path_file).unwrap().trim()
+    let etc_dir = PathBuf::from(format!("{sharun_dir}/etc"));
+    let share_dir = PathBuf::from(format!("{sharun_dir}/share"));
+
+    let lib_path_file = &format!("{library_path}/lib.path");
+    if !Path::new(lib_path_file).exists() {
+        gen_library_path(&mut library_path, lib_path_file)
+    }
+    if let Ok(lib_path_data) = read_to_string(lib_path_file) {
+        let lib_path_data = lib_path_data.trim();
+        let dirs: HashSet<&str> = lib_path_data.split("\n").map(|string|{
+            if let Some(dir) = string.split("/").nth(1) {
+                dir
+            } else {""}
+        }).collect();
+        for dir in dirs {
+            let dir_path = &format!("{library_path}/{dir}");
+            if dir.starts_with("python") {
+                add_to_env("PYTHONHOME", shared_dir)
+            }
+            if dir.starts_with("perl") {
+                add_to_env("PERLLIB", dir_path)
+            }
+            if dir == "gconv" {
+                add_to_env("GCONV_PATH", dir_path)
+            }
+            if dir.starts_with("gtk-") {
+                add_to_env("GTK_PATH", dir_path);
+                env::set_var("GTK_EXE_PREFIX", &sharun_dir);
+                env::set_var("GTK_DATA_PREFIX", &sharun_dir)
+            }
+            if dir.starts_with("qt") {
+                let plugins = &format!("{dir_path}/plugins");
+                if Path::new(plugins).exists() {
+                    add_to_env("QT_PLUGIN_PATH", plugins)
+                }
+            }
+            if dir.starts_with("tcl") {
+                if Path::new(&format!("{dir_path}/msgs")).exists() {
+                    add_to_env("TCL_LIBRARY", dir_path);
+                    let tk = &format!("{library_path}/{}", dir.replace("tcl", "tk"));
+                    if Path::new(&tk).exists() {
+                        add_to_env("TK_LIBRARY", tk)
+                    }
+                }
+            }
+            if dir.starts_with("gstreamer-") {
+                add_to_env("GST_PLUGIN_PATH", dir_path);
+                add_to_env("GST_PLUGIN_SYSTEM_PATH", dir_path);
+                add_to_env("GST_PLUGIN_SYSTEM_PATH_1_0", dir_path);
+                let gst_scanner = &format!("{dir_path}/gst-plugin-scanner");
+                if Path::new(gst_scanner).exists() {
+                    env::set_var("GST_PLUGIN_SCANNER", gst_scanner)
+                }
+            }
+            if dir.starts_with("gdk-pixbuf-") {
+                let mut find: Vec<bool> = Vec::new();
+                WalkDir::new(dir_path).into_iter()
+                    .filter_map(|entry| entry.ok())
+                    .for_each(|entry| {
+                        let path = entry.path();
+                        let name = entry.file_name().to_string_lossy();
+                        if name == "loaders" && path.is_dir() {
+                            env::set_var("GDK_PIXBUF_MODULEDIR", path);
+                            find.push(true)
+                        }
+                        if name == "loaders.cache" && path.is_file() {
+                            env::set_var("GDK_PIXBUF_MODULE_FILE", path);
+                            find.push(true)
+                        }
+                        if find.len() == 2 {return}
+                });
+            }
+        }
+        library_path = lib_path_data
             .replace("\n", ":")
             .replace("+", &library_path)
     } else {
-        gen_library_path(&mut library_path);
+        eprintln!("Failed to read lib.path: {lib_path_file}");
+        exit(1)
+    }
+
+    add_to_env("PATH", bin_dir);
+
+    if share_dir.exists() {
+        if let Ok(dir) = share_dir.read_dir() {
+            let share = share_dir.to_string_lossy();
+            add_to_env("XDG_DATA_DIRS", "/usr/local/share");
+            add_to_env("XDG_DATA_DIRS", "/usr/share");
+            add_to_env("XDG_DATA_DIRS", &share);
+            for entry in dir {
+                if let Ok(entry) = entry {
+                    if entry.path().is_dir() {
+                        let name = entry.file_name();
+                        match name.to_str().unwrap() {
+                            "glvnd" =>  {
+                                let egl_vendor = &format!("{share}/glvnd/egl_vendor.d");
+                                if Path::new(egl_vendor).exists() {
+                                    add_to_env("__EGL_VENDOR_LIBRARY_DIRS", "/usr/share/glvnd/egl_vendor.d");
+                                    add_to_env("__EGL_VENDOR_LIBRARY_DIRS", egl_vendor)
+                                }
+                            }
+                            "vulkan" =>  {
+                                let icd = &format!("{share}/vulkan/icd.d");
+                                if Path::new(icd).exists() {
+                                    add_to_env("VK_DRIVER_FILES", "/usr/share/vulkan/icd.d");
+                                    add_to_env("VK_DRIVER_FILES", icd)
+                                }
+                            }
+                            "X11" =>  {
+                                let xkb = &format!("{share}/X11/xkb");
+                                if Path::new(xkb).exists() {
+                                    env::set_var("XKB_CONFIG_ROOT",xkb)
+                                }
+                            }
+                            "glib-2.0" =>  {
+                                let schemas = &format!("{share}/glib-2.0/schemas");
+                                if Path::new(schemas).exists() {
+                                    add_to_env("GSETTINGS_SCHEMA_DIR", "/usr/share/glib-2.0/schemas");
+                                    add_to_env("GSETTINGS_SCHEMA_DIR", schemas)
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if etc_dir.exists() {
+        if let Ok(dir) = etc_dir.read_dir() {
+            for entry in dir {
+                if let Ok(entry) = entry {
+                    if entry.path().is_dir() {
+                        let name = entry.file_name();
+                        if name == "fonts"  {
+                            let fonts_conf =etc_dir.join("fonts/fonts.conf");
+                            if fonts_conf.exists() {
+                                env::set_var("FONTCONFIG_FILE", fonts_conf)
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     let envs: Vec<CString> = env::vars()

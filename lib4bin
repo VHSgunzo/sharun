@@ -180,6 +180,7 @@ try_cp() {
             [ "$VERBOSE" == 1 ] && \
                 echo -n "cp: "
             cp $varg -f "$1" "$2"||exit 1
+            chmod $varg 755 "$2"||exit 1
     fi
 }
 
@@ -380,6 +381,13 @@ for binary in "${BINARY_LIST[@]}"
                 IS_ELF32="$(grep -q 'ELF 32-bit'<<<"$FILE_INFO")"
                 IS_EXECUTABLE="$(grep -o 'executable'<<<"$FILE_INFO")"
                 info_msg "$YELLOW[ $binary_number ]: $BLUE[$binary_name] ${GREEN}..."
+                if [ "$HARD_LINKS" == 1 ] && [[ -n "$IS_SCRIPT" || -n "$IS_STATIC" ]]
+                    then
+                        hard_links=0
+                        with_sharun=1
+                fi
+                hard_links=${HARD_LINKS:=0}
+                with_sharun=${WITH_SHARUN:=0}
                 if [ -n "$IS_EXECUTABLE" ] && [[ "$ANY_EXECUTABLE" == 1 || -n "$IS_ELF" ]]
                     then
                         needed_libs="$(print_needed "$binary_src_pth")"
@@ -391,17 +399,12 @@ for binary in "${BINARY_LIST[@]}"
                                         if [[ -n "$LIBS" && ! -n "$IS_SCRIPT" && ! -n "$IS_STATIC" ]]
                                             then
                                                 INTERPRETER="$(basename "$(grep 'ld-linux'<<<"$LIBS"|cut -d'=' -f1|sed 's|\t||' )")"
-                                                [[ "$CREATE_LINKS" == 1 && "$HARD_LINKS" == 1 && ! -x "${dst_dir}/sharun" ]] && \
-                                                    WITH_SHARUN=1
+                                                [[ "$CREATE_LINKS" == 1 && "$hard_links" == 1 && ! -x "${dst_dir}/sharun" ]] && \
+                                                    with_sharun=1
                                             else
-                                                if [[ -n "$IS_SCRIPT" || -n "$IS_STATIC" ]]
-                                                    then
-                                                        [ "$HARD_LINKS" == 1 ] && \
-                                                            WITH_SHARUN=1 && HARD_LINKS=0
-                                                fi
                                                 bin_dir_pth="$sharun_bin_dir_pth"
                                         fi
-                                        if [[ "$WITH_SHARUN" == 1 && ! -x "${dst_dir}/sharun" ]]
+                                        if [[ "$with_sharun" == 1 && ! -x "${dst_dir}/sharun" ]]
                                             then
                                                 TMP_SHARUN="/tmp/sharun-$(uname -m)$([ "$UPX_SHARUN" != 1 ]||echo -upx)"
                                                 SHARUN="${SHARUN:="$(readlink -f "$(which_exe sharun)")"}"
@@ -455,7 +458,7 @@ for binary in "${BINARY_LIST[@]}"
                                                 if [ "$CREATE_LINKS" == 1 ]
                                                     then
                                                         try_mkdir "$sharun_bin_dir_pth"
-                                                        [ "$HARD_LINKS" == 1 ] && \
+                                                        [ "$hard_links" == 1 ] && \
                                                             ln_args='-Pf'||ln_args='-sf'
                                                         (try_cd "$sharun_bin_dir_pth"
                                                         [ "$VERBOSE" != 1 ]||echo -n "ln: "
@@ -489,7 +492,7 @@ for binary in "${BINARY_LIST[@]}"
                                                 [[ -n "$lib_src_real_pth" && "${LIBRARIES["$lib_src_real_pth"]}" != 1 ]]
                                                     then
                                                         try_mkdir "$lib_dst_dir_pth"
-                                                        if [[ "$HARD_LINKS" == 1 && ! -L "${dst_dir}/${lib_dir}" ]]
+                                                        if [[ "$hard_links" == 1 && ! -L "${dst_dir}/${lib_dir}" ]]
                                                             then
                                                                 (try_cd "$dst_dir"
                                                                 try_ln shared/$lib_dir $lib_dir)||exit 1
