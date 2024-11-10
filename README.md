@@ -84,7 +84,7 @@ cp ./target/$(uname -m)-unknown-linux-musl/release/sharun .
 ./test/sharun bash --version
 ```
 
-You can also create a symlink from `sharun` to `AppRun` and write the name of the executable file from the `bin` directory to the `AppName` file for compatibility with [AppImage](https://appimage.org) `AppDir`
+You can also create a symlink from `sharun` to `AppRun` and write the name of the executable file from the `bin` directory to the `AppName` file for compatibility with [AppImage](https://appimage.org) `AppDir`. If the `AppName` file does not exist, the `.desktop` file will be used.
 
 # Screenshots:
 ![tree](img/tree.png)
