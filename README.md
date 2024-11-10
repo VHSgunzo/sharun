@@ -93,6 +93,8 @@ cp ./target/$(uname -m)-unknown-linux-musl/release/sharun .
 * [android-tools-AppImage](https://github.com/Samueru-sama/android-tools-AppImage)
 * [pavucontrol-qt-AppImage](https://github.com/Samueru-sama/pavucontrol-qt-AppImage)
 * [rofi-AppImage](https://github.com/Samueru-sama/rofi-AppImage)
+* [mpv-AppImage](https://github.com/Samueru-sama/mpv-AppImage)
+* [OBS-Studio-AppImage](https://github.com/Samueru-sama/OBS-Studio-AppImage)
 
 ## References
 * [userland-execve](https://crates.io/crates/userland-execve)

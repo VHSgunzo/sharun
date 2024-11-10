@@ -126,7 +126,7 @@ get_libs() {
             sleep $STRACE_TIME
             local pids="$(cut -d ' ' -f1<"$libs_file"|sort -u)"
             kill $pids 2>/dev/null
-            local libs="$(echo -e "$(sed '/.*nvidia.*/d;/ENOENT/d'<"$libs_file"|\
+            local libs="$(echo -e "$(sed '/nvidia/d;/libcuda/d;/ENOENT/d'<"$libs_file"|\
                           grep -oP '".*lib.*\.so.*"'|sed -u 's|"||g')")\n"
             rm -f "$libs_file"
     fi
@@ -374,7 +374,9 @@ for binary in "${BINARY_LIST[@]}"
                 DST_DIRS["$dst_dir_pth"]=
                 bin_dir_pth="${dst_dir_pth}/bin"
                 FILE_INFO="$(file "$binary_src_pth" 2>/dev/null)"
-                IS_ELF="$(grep -o 'ELF '<<<"$FILE_INFO")"
+                IS_ELF="$(grep -o 'ELF'<<<"$FILE_INFO")"
+                IS_STATIC="$(grep -o 'static'<<<"$FILE_INFO")"
+                IS_SCRIPT="$(grep -o 'script'<<<"$FILE_INFO")"
                 IS_ELF32="$(grep -q 'ELF 32-bit'<<<"$FILE_INFO")"
                 IS_EXECUTABLE="$(grep -o 'executable'<<<"$FILE_INFO")"
                 info_msg "$YELLOW[ $binary_number ]: $BLUE[$binary_name] ${GREEN}..."
@@ -386,12 +388,18 @@ for binary in "${BINARY_LIST[@]}"
                             then
                                 if [ "$LIBS_ONLY" != 1 ]
                                     then
-                                        if [ -n "$LIBS" ]
+                                        if [[ -n "$LIBS" && ! -n "$IS_SCRIPT" && ! -n "$IS_STATIC" ]]
                                             then
                                                 INTERPRETER="$(basename "$(grep 'ld-linux'<<<"$LIBS"|cut -d'=' -f1|sed 's|\t||' )")"
                                                 [[ "$CREATE_LINKS" == 1 && "$HARD_LINKS" == 1 && ! -x "${dst_dir}/sharun" ]] && \
                                                     WITH_SHARUN=1
-                                            else bin_dir_pth="$sharun_bin_dir_pth"
+                                            else
+                                                if [[ -n "$IS_SCRIPT" || -n "$IS_STATIC" ]]
+                                                    then
+                                                        [ "$HARD_LINKS" == 1 ] && \
+                                                            WITH_SHARUN=1 && HARD_LINKS=0
+                                                fi
+                                                bin_dir_pth="$sharun_bin_dir_pth"
                                         fi
                                         if [[ "$WITH_SHARUN" == 1 && ! -x "${dst_dir}/sharun" ]]
                                             then
@@ -440,7 +448,7 @@ for binary in "${BINARY_LIST[@]}"
                                         if [ -n "$IS_ELF" ]
                                             then try_strip "$binary_dst_pth"
                                         fi
-                                        if [ -n "$LIBS" ]
+                                        if [[ -n "$LIBS" && ! -n "$IS_SCRIPT" && ! -n "$IS_STATIC" ]]
                                             then
                                                 repath_needed_libs "$binary_dst_pth" "$needed_libs"
                                                 try_set_rpath "$binary_dst_pth"
