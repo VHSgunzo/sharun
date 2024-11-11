@@ -34,16 +34,18 @@ cp ./target/$(uname -m)-unknown-linux-musl/release/sharun .
     Use lib4bin for create 'bin' and 'shared' dirs
 
 [ Arguments ]:
-    [EXEC ARGS]...          Command line arguments for execution
+    [EXEC ARGS]...              Command line arguments for execution
 
 [ Options ]:
-     l,  lib4bin [ARGS]     Launch the built-in lib4bin
-    -g,  --gen-lib-path     Generate library path file
-    -v,  --version          Print version
-    -h,  --help             Print help
+     l,  lib4bin [ARGS]         Launch the built-in lib4bin
+    -g,  --gen-lib-path         Generate library path file
+    -v,  --version              Print version
+    -h,  --help                 Print help
 
 [ Environments ]:
-    SHARUN_LDNAME=ld.so     Specifies the name of the interpreter
+    SHARUN_WORKING_DIR=/path    Specifies the path to the working directory
+    SHARUN_LDNAME=ld.so         Specifies the name of the interpreter
+    SHARUN_DIR                  Sharun directory
 ```
 
 ## Usage lib4bin:
@@ -84,7 +86,8 @@ cp ./target/$(uname -m)-unknown-linux-musl/release/sharun .
 ./test/sharun bash --version
 ```
 
-You can also create a symlink from `sharun` to `AppRun` and write the name of the executable file from the `bin` directory to the `AppName` file for compatibility with [AppImage](https://appimage.org) `AppDir`. If the `AppName` file does not exist, the `.desktop` file will be used.
+* You can create a symlink from `sharun` to `AppRun` and write the name of the executable file from the `bin` directory to the `.app` file for compatibility with [AppImage](https://appimage.org) `AppDir`. If the `.app` file does not exist, the `*.desktop` file will be used.
+* Additional env var can be specified in the `.env` file (see [dotenv](https://crates.io/crates/dotenv)). Env var can also be deleted using `unset ENV_VAR` in the end of the `.env` file.
 
 # Screenshots:
 ![tree](img/tree.png)

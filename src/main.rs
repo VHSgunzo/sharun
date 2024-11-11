@@ -1,13 +1,13 @@
 use std::{
-    env,
+    env, fs, io,
     ffi::CString,
     str::FromStr,
     collections::HashSet,
     path::{Path, PathBuf},
-    os::unix::process::CommandExt,
     process::{Command, Stdio, exit},
     io::{Read, Result, Error, Write},
-    fs::{File, write, read_to_string}
+    fs::{File, write, read_to_string},
+    os::unix::{fs::MetadataExt, process::CommandExt}
 };
 
 use walkdir::WalkDir;
@@ -85,9 +85,33 @@ fn add_to_env(var: &str, dir: &str) {
     }
 }
 
+fn read_dotenv(dotenv_dir: &str) {
+    let dotenv_path = PathBuf::from(format!("{dotenv_dir}/.env"));
+    if dotenv_path.exists() {
+        dotenv::from_path(&dotenv_path).ok();
+        let data = read_to_string(&dotenv_path).unwrap_or_else(|err|{
+            eprintln!("Failed to read .env file: {}: {err}", dotenv_path.display());
+            exit(1)
+        });
+        for string in data.trim().split("\n") {
+            let string = string.trim();
+            if string.starts_with("unset ") {
+                for var_name in string.split_whitespace().skip(1) {
+                    env::remove_var(var_name)
+                }
+            }
+        }
+    }
+}
+
+fn is_hard_links(file1: &Path, file2: &Path) -> io::Result<bool> {
+    let metadata1 = fs::metadata(file1)?;
+    let metadata2 = fs::metadata(file2)?;
+    Ok(metadata1.ino() == metadata2.ino())
+}
+
 fn gen_library_path(library_path: &mut String, lib_path_file: &String) {
-    let mut added_dirs = HashSet::new();
-    let mut new_paths = Vec::new();
+    let mut new_paths: Vec<String> = Vec::new();
     WalkDir::new(&mut *library_path)
         .into_iter()
         .filter_map(|entry| entry.ok())
@@ -97,9 +121,8 @@ fn gen_library_path(library_path: &mut String, lib_path_file: &String) {
                 if let Some(parent) = entry.path().parent() {
                     if let Some(parent_str) = parent.to_str() {
                         if parent_str != library_path && parent.is_dir() &&
-                            !added_dirs.contains(parent_str) {
-                            added_dirs.insert(parent_str.to_string());
-                            new_paths.push(parent_str.to_string());
+                            !new_paths.contains(&parent_str.into()) {
+                            new_paths.push(parent_str.into());
                         }
                     }
                 }
@@ -124,16 +147,18 @@ fn print_usage() {
     Use lib4bin for create 'bin' and 'shared' dirs
 
 [ Arguments ]:
-    [EXEC ARGS]...          Command line arguments for execution
+    [EXEC ARGS]...              Command line arguments for execution
 
 [ Options ]:
-     l,  lib4bin [ARGS]     Launch the built-in lib4bin
-    -g,  --gen-lib-path     Generate library path file
-    -v,  --version          Print version
-    -h,  --help             Print help
+     l,  lib4bin [ARGS]         Launch the built-in lib4bin
+    -g,  --gen-lib-path         Generate library path file
+    -v,  --version              Print version
+    -h,  --help                 Print help
 
 [ Environments ]:
-    SHARUN_LDNAME=ld.so     Specifies the name of the interpreter",
+    SHARUN_WORKING_DIR=/path    Specifies the path to the working directory
+    SHARUN_LDNAME=ld.so         Specifies the name of the interpreter
+    SHARUN_DIR                  Sharun directory",
     env!("CARGO_PKG_DESCRIPTION"));
 }
 
@@ -143,11 +168,13 @@ fn main() {
     let mut exec_args: Vec<String> = env::args().collect();
 
     let mut sharun_dir = sharun.parent().unwrap().to_str().unwrap().to_string();
-    let lower_dir = format!("{sharun_dir}/../");
+    let lower_dir = &format!("{sharun_dir}/../");
     if basename(&sharun_dir) == "bin" &&
        is_file(&format!("{lower_dir}{SHARUN_NAME}")) {
         sharun_dir = realpath(&lower_dir)
     }
+
+    env::set_var("SHARUN_DIR", &sharun_dir);
 
     let bin_dir = &format!("{sharun_dir}/bin");
     let shared_dir = &format!("{sharun_dir}/shared");
@@ -201,11 +228,23 @@ fn main() {
                     }
 
                 }
-                _ => { bin_name = exec_args.remove(0) }
+                _ => {
+                    bin_name = exec_args.remove(0);
+                    let bin_path = PathBuf::from(format!("{bin_dir}/{bin_name}"));
+                    let is_hardlink = is_hard_links(&sharun, &bin_path).unwrap_or(false);
+                    if bin_path.exists() && is_hardlink {
+                        let err = Command::new(&bin_path)
+                            .envs(env::vars())
+                            .args(exec_args)
+                            .exec();
+                        eprintln!("Failed to run: {}: {err}", bin_path.display());
+                        exit(1)
+                    }
+                }
             }
         } else {
-            eprintln!("Specify the executable from the 'shared/bin' dir!");
-            if let Ok(dir) = Path::new(shared_bin).read_dir() {
+            eprintln!("Specify the executable from: '{bin_dir}'");
+            if let Ok(dir) = Path::new(bin_dir).read_dir() {
                 for bin in dir {
                     println!("{}", bin.unwrap().file_name().to_str().unwrap())
                 }
@@ -213,7 +252,7 @@ fn main() {
             exit(1)
         }
     } else if bin_name == "AppRun" {
-        let appname_file = &format!("{sharun_dir}/AppName");
+        let appname_file = &format!("{sharun_dir}/.app");
         let mut appname: String = "".into();
         if !Path::new(appname_file).exists() {
             if let Ok(dir) = Path::new(&sharun_dir).read_dir() {
@@ -242,19 +281,24 @@ fn main() {
 
         if appname.is_empty() {
             appname = read_to_string(appname_file).unwrap_or_else(|err|{
-                eprintln!("Failed to read AppName file: {appname_file}: {err}");
+                eprintln!("Failed to read .app file: {appname_file}: {err}");
                 exit(1)
             })
         }
 
-        appname =  basename(appname.trim())
-        .replace("'", "").replace("\"", "");
+        if let Some(name) = appname.trim().split("\n").nth(0) {
+            appname = basename(name)
+            .replace("'", "").replace("\"", "")
+        } else {
+            eprintln!("Failed to get app name: {appname_file}");
+            exit(1)
+        }
         let app = &format!("{bin_dir}/{appname}");
 
         if get_env_var("ARGV0").is_empty() {
             env::set_var("ARGV0", arg0)
         }
-        env::set_var("APPDIR", sharun_dir);
+        env::set_var("APPDIR", &sharun_dir);
 
         let err = Command::new(app)
             .envs(env::vars())
@@ -277,10 +321,21 @@ fn main() {
         library_path = shared_lib
     }
 
+    read_dotenv(&sharun_dir);
+    
     let interpreter = get_interpreter(&library_path).unwrap_or_else(|_|{
         eprintln!("Interpreter not found!");
         exit(1)
     });
+
+    let working_dir = &get_env_var("SHARUN_WORKING_DIR");
+    if !working_dir.is_empty() {
+        env::set_current_dir(working_dir).unwrap_or_else(|err|{
+            eprintln!("Failed to change working directory: {working_dir}: {err}");
+            exit(1)
+        });
+        env::remove_var("SHARUN_WORKING_DIR")
+    }
 
     let etc_dir = PathBuf::from(format!("{sharun_dir}/etc"));
     let share_dir = PathBuf::from(format!("{sharun_dir}/share"));
@@ -299,7 +354,8 @@ fn main() {
         for dir in dirs {
             let dir_path = &format!("{library_path}/{dir}");
             if dir.starts_with("python") {
-                add_to_env("PYTHONHOME", shared_dir)
+                add_to_env("PYTHONHOME", shared_dir);
+                env::set_var("PYTHONDONTWRITEBYTECODE", "1")
             }
             if dir.starts_with("perl") {
                 add_to_env("PERLLIB", dir_path)
@@ -316,6 +372,18 @@ fn main() {
                 let plugins = &format!("{dir_path}/plugins");
                 if Path::new(plugins).exists() {
                     add_to_env("QT_PLUGIN_PATH", plugins)
+                }
+            }
+            if dir.starts_with("babl-") {
+                env::set_var("BABL_PATH", dir_path)
+            }
+            if dir.starts_with("gegl-") {
+                env::set_var("GEGL_PATH", dir_path)
+            }
+            if dir == "gimp" {
+                let plugins = &format!("{dir_path}/2.0");
+                if Path::new(plugins).exists() {
+                    env::set_var("GIMP2_PLUGINDIR", plugins)
                 }
             }
             if dir.starts_with("tcl") {
@@ -403,6 +471,12 @@ fn main() {
                                     add_to_env("GSETTINGS_SCHEMA_DIR", schemas)
                                 }
                             }
+                            "gimp" =>  {
+                                let gimp = &format!("{share}/gimp/2.0");
+                                if Path::new(gimp).exists() {
+                                    env::set_var("GIMP2_DATADIR",gimp)
+                                }
+                            }
                             _ => {}
                         }
                     }
@@ -417,11 +491,20 @@ fn main() {
                 if let Ok(entry) = entry {
                     if entry.path().is_dir() {
                         let name = entry.file_name();
-                        if name == "fonts"  {
-                            let fonts_conf =etc_dir.join("fonts/fonts.conf");
-                            if fonts_conf.exists() {
-                                env::set_var("FONTCONFIG_FILE", fonts_conf)
+                        match name.to_str().unwrap() {
+                            "fonts" => {
+                                let fonts_conf =etc_dir.join("fonts/fonts.conf");
+                                if fonts_conf.exists() {
+                                    env::set_var("FONTCONFIG_FILE", fonts_conf)
+                                }
                             }
+                            "gimp" => {
+                                let conf =etc_dir.join("gimp/2.0");
+                                if conf.exists() {
+                                    env::set_var("GIMP2_SYSCONFDIR", conf)
+                                }
+                            }
+                            _ => {}
                         }
                     }
                 }
