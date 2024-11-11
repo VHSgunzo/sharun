@@ -100,6 +100,7 @@ cp ./target/$(uname -m)-unknown-linux-musl/release/sharun .
 * [rofi-AppImage](https://github.com/Samueru-sama/rofi-AppImage)
 * [mpv-AppImage](https://github.com/Samueru-sama/mpv-AppImage)
 * [OBS-Studio-AppImage](https://github.com/Samueru-sama/OBS-Studio-AppImage)
+* [GIMP-AppImage](https://github.com/Samueru-sama/GIMP-AppImage)
 
 ## References
 * [userland-execve](https://crates.io/crates/userland-execve)
