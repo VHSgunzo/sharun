@@ -343,7 +343,6 @@ fn main() {
         exit(1)
     }
     let bin = format!("{shared_bin}/{bin_name}");
-    println!("bin_name: {bin_name}");
 
     let is_elf32_bin = is_elf32(&bin).unwrap_or_else(|err|{
         eprintln!("Failed to check ELF class: {bin}: {err}");
