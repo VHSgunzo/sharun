@@ -10,6 +10,7 @@ use std::{
     os::unix::{fs::MetadataExt, process::CommandExt}
 };
 
+use which::which;
 use walkdir::WalkDir;
 
 
@@ -51,6 +52,21 @@ fn realpath(path: &str) -> String {
 fn basename(path: &str) -> String {
     let pieces: Vec<&str> = path.rsplit('/').collect();
     pieces.get(0).unwrap().to_string()
+}
+
+fn dirname(path: &str) -> String {
+    let mut pieces: Vec<&str> = path.split('/').collect();
+    if pieces.len() == 1 || path.is_empty() {
+        // return ".".to_string();
+    } else if !path.starts_with('/') &&
+        !path.starts_with('.') &&
+        !path.starts_with('~') {
+            pieces.insert(0, ".");
+    } else if pieces.len() == 2 && path.starts_with('/') {
+        pieces.insert(0, "");
+    };
+    pieces.pop();
+    pieces.join(&'/'.to_string())
 }
 
 fn is_file(path: &str) -> bool {
@@ -163,8 +179,9 @@ fn print_usage() {
 }
 
 fn main() {
-    let sharun = env::current_exe().unwrap();
     let lib4bin = include_bytes!("../lib4bin");
+
+    let sharun: PathBuf = env::current_exe().unwrap();
     let mut exec_args: Vec<String> = env::args().collect();
 
     let mut sharun_dir = sharun.parent().unwrap().to_str().unwrap().to_string();
@@ -182,8 +199,26 @@ fn main() {
     let shared_lib = format!("{shared_dir}/lib");
     let shared_lib32 = format!("{shared_dir}/lib32");
 
-    let arg0 = &exec_args.remove(0);
-    let mut bin_name = basename(arg0);
+    let arg0 = PathBuf::from(exec_args.remove(0));
+    let arg0_name = arg0.file_name().unwrap();
+    let arg0_dir = PathBuf::from(dirname(arg0.to_str().unwrap())).canonicalize()
+        .unwrap_or_else(|_|{
+            if let Ok(which_arg0) = which(arg0_name) {
+                which_arg0.parent().unwrap().to_path_buf()
+            } else {
+                eprintln!("Failed to find ARG0 dir!");
+                exit(1)
+            }
+    });
+    let arg0_path = arg0_dir.join(arg0_name);
+
+    let mut bin_name: String;
+    if arg0_path.is_symlink() && arg0_path.canonicalize().unwrap() == sharun {
+        bin_name = arg0_name.to_str().unwrap().into();
+    } else {
+        bin_name = basename(sharun.file_name().unwrap().to_str().unwrap());
+    }
+
     if bin_name == SHARUN_NAME {
         if exec_args.len() > 0 {
             match exec_args[0].as_str() {
@@ -269,7 +304,7 @@ fn main() {
                                 });
                                 appname = data.split("\n").filter_map(|string| {
                                     if string.starts_with("Exec=") {
-                                        Some(string.replace("Exec=", "").split_whitespace().next().unwrap_or("").to_string())
+                                        Some(string.replace("Exec=", "").split_whitespace().next().unwrap_or("").into())
                                     } else {None}
                                 }).next().unwrap_or_else(||"".into())
                             }
@@ -296,7 +331,7 @@ fn main() {
         let app = &format!("{bin_dir}/{appname}");
 
         if get_env_var("ARGV0").is_empty() {
-            env::set_var("ARGV0", arg0)
+            env::set_var("ARGV0", &arg0)
         }
         env::set_var("APPDIR", &sharun_dir);
 
@@ -308,6 +343,7 @@ fn main() {
         exit(1)
     }
     let bin = format!("{shared_bin}/{bin_name}");
+    println!("bin_name: {bin_name}");
 
     let is_elf32_bin = is_elf32(&bin).unwrap_or_else(|err|{
         eprintln!("Failed to check ELF class: {bin}: {err}");
@@ -322,7 +358,7 @@ fn main() {
     }
 
     read_dotenv(&sharun_dir);
-    
+
     let interpreter = get_interpreter(&library_path).unwrap_or_else(|_|{
         eprintln!("Interpreter not found!");
         exit(1)
@@ -354,7 +390,7 @@ fn main() {
         for dir in dirs {
             let dir_path = &format!("{library_path}/{dir}");
             if dir.starts_with("python") {
-                add_to_env("PYTHONHOME", shared_dir);
+                add_to_env("PYTHONHOME", &sharun_dir);
                 env::set_var("PYTHONDONTWRITEBYTECODE", "1")
             }
             if dir.starts_with("perl") {

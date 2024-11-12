@@ -1,6 +1,6 @@
 [package]
 name = "sharun"
-version = "0.1.4"
+version = "0.1.5"
 readme = "README.md"
 license = "MIT"
 repository = "https://github.com/VHSgunzo/sharun"
@@ -20,6 +20,7 @@ panic = "abort"
 opt-level = 0
 
 [dependencies]
+which = "7.0.0"
 walkdir = "2.5.0"
 userland-execve = "0.2.0"
 dotenv = { git = "https://github.com/VHSgunzo/dotenv.git" }
