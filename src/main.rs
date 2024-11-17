@@ -276,6 +276,7 @@ fn main() {
                     let is_elf = is_elf(&bin_path).unwrap_or(false);
                     let is_hardlink = is_hardlink(&sharun, &bin_path).unwrap_or(false);
                     if is_exe && (is_hardlink || !is_elf) {
+                        add_to_env("PATH", bin_dir);
                         let err = Command::new(&bin_path)
                             .envs(env::vars())
                             .args(exec_args)
@@ -338,6 +339,7 @@ fn main() {
         }
         let app = &format!("{bin_dir}/{appname}");
 
+        add_to_env("PATH", bin_dir);
         if get_env_var("ARGV0").is_empty() {
             env::set_var("ARGV0", &arg0)
         }
