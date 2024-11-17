@@ -79,13 +79,6 @@ fn is_exe(file_path: &PathBuf) -> Result<bool> {
     Ok(metadata.is_file() && metadata.permissions().mode() & 0o111 != 0)
 }
 
-fn is_elf(file_path: &PathBuf) -> Result<bool> {
-    let mut file = File::open(file_path)?;
-    let mut buff = [0u8; 4];
-    file.read_exact(&mut buff)?;
-    Ok(&buff == b"\x7fELF")
-}
-
 fn is_elf32(file_path: &str) -> Result<bool> {
     let mut file = File::open(file_path)?;
     let mut buff = [0u8; 5];
@@ -272,10 +265,10 @@ fn main() {
                 _ => {
                     bin_name = exec_args.remove(0);
                     let bin_path = PathBuf::from(bin_dir).join(&bin_name);
-                    let is_exe = is_exe(&bin_path).unwrap_or(false);
-                    let is_elf = is_elf(&bin_path).unwrap_or(false);
-                    let is_hardlink = is_hardlink(&sharun, &bin_path).unwrap_or(false);
-                    if is_exe && (is_hardlink || !is_elf) {
+                    if is_exe(&bin_path).unwrap_or(false) &&
+                        (is_hardlink(&sharun, &bin_path).unwrap_or(false) ||
+                        !Path::new(&shared_bin).join(&bin_name).exists())
+                    {
                         add_to_env("PATH", bin_dir);
                         let err = Command::new(&bin_path)
                             .envs(env::vars())
