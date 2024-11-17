@@ -42,6 +42,7 @@ jobs:
           cross build --release --target aarch64-unknown-linux-musl
           mv target/aarch64-unknown-linux-musl/release/sharun sharun-aarch64
 
+      # https://github.com/aunali1/super-strip
       - name: Strip
         run: |
           "${{ github.workspace }}/.github/sstrip" sharun-*

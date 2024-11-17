@@ -7,7 +7,7 @@ use std::{
     process::{Command, Stdio, exit},
     io::{Read, Result, Error, Write},
     fs::{File, write, read_to_string},
-    os::unix::{fs::MetadataExt, process::CommandExt}
+    os::unix::{fs::{MetadataExt, PermissionsExt}, process::CommandExt}
 };
 
 use which::which;
@@ -51,7 +51,7 @@ fn realpath(path: &str) -> String {
 
 fn basename(path: &str) -> String {
     let pieces: Vec<&str> = path.rsplit('/').collect();
-    pieces.get(0).unwrap().to_string()
+    pieces.first().unwrap().to_string()
 }
 
 fn dirname(path: &str) -> String {
@@ -74,6 +74,18 @@ fn is_file(path: &str) -> bool {
     path.is_file()
 }
 
+fn is_exe(file_path: &PathBuf) -> Result<bool> {
+    let metadata = fs::metadata(file_path)?;
+    Ok(metadata.is_file() && metadata.permissions().mode() & 0o111 != 0)
+}
+
+fn is_elf(file_path: &PathBuf) -> Result<bool> {
+    let mut file = File::open(file_path)?;
+    let mut buff = [0u8; 4];
+    file.read_exact(&mut buff)?;
+    Ok(&buff == b"\x7fELF")
+}
+
 fn is_elf32(file_path: &str) -> Result<bool> {
     let mut file = File::open(file_path)?;
     let mut buff = [0u8; 5];
@@ -85,19 +97,15 @@ fn is_elf32(file_path: &str) -> Result<bool> {
 }
 
 fn get_env_var(var: &str) -> String {
-    if let Ok(val) = env::var(var) {
-        return val
-    }; "".into()
+    env::var(var).unwrap_or("".into())
 }
 
-fn add_to_env(var: &str, dir: &str) {
-    let old_dir = get_env_var(var);
-    if !old_dir.contains(dir) {
-        if old_dir.is_empty() {
-            env::set_var(var, dir)
-        } else {
-            env::set_var(var, format!("{dir}:{old_dir}"))
-        }
+fn add_to_env(var: &str, val: &str) {
+    let old_val = get_env_var(var);
+    if old_val.is_empty() {
+        env::set_var(var, val)
+    } else if !old_val.contains(val) {
+        env::set_var(var, format!("{val}:{old_val}"))
     }
 }
 
@@ -120,7 +128,7 @@ fn read_dotenv(dotenv_dir: &str) {
     }
 }
 
-fn is_hard_links(file1: &Path, file2: &Path) -> io::Result<bool> {
+fn is_hardlink(file1: &Path, file2: &Path) -> io::Result<bool> {
     let metadata1 = fs::metadata(file1)?;
     let metadata2 = fs::metadata(file2)?;
     Ok(metadata1.ino() == metadata2.ino())
@@ -145,7 +153,7 @@ fn gen_library_path(library_path: &mut String, lib_path_file: &String) {
             }
         });
     if let Err(err) = write(lib_path_file,
-        &format!("+:{}", &new_paths.join(":"))
+        format!("+:{}", &new_paths.join(":"))
             .replace(":", "\n")
             .replace(&*library_path, "+")
     ) {
@@ -188,7 +196,7 @@ fn main() {
     let lower_dir = &format!("{sharun_dir}/../");
     if basename(&sharun_dir) == "bin" &&
        is_file(&format!("{lower_dir}{SHARUN_NAME}")) {
-        sharun_dir = realpath(&lower_dir)
+        sharun_dir = realpath(lower_dir)
     }
 
     env::set_var("SHARUN_DIR", &sharun_dir);
@@ -212,15 +220,14 @@ fn main() {
     });
     let arg0_path = arg0_dir.join(arg0_name);
 
-    let mut bin_name: String;
-    if arg0_path.is_symlink() && arg0_path.canonicalize().unwrap() == sharun {
-        bin_name = arg0_name.to_str().unwrap().into();
+    let mut bin_name = if arg0_path.is_symlink() && arg0_path.canonicalize().unwrap() == sharun {
+        arg0_name.to_str().unwrap().into()
     } else {
-        bin_name = basename(sharun.file_name().unwrap().to_str().unwrap());
-    }
+        basename(sharun.file_name().unwrap().to_str().unwrap())
+    };
 
     if bin_name == SHARUN_NAME {
-        if exec_args.len() > 0 {
+        if !exec_args.is_empty() {
             match exec_args[0].as_str() {
                 "-v" | "--version" => {
                     println!("v{}", env!("CARGO_PKG_VERSION"));
@@ -261,13 +268,14 @@ fn main() {
                             exit(1)
                         }
                     }
-
                 }
                 _ => {
                     bin_name = exec_args.remove(0);
-                    let bin_path = PathBuf::from(format!("{bin_dir}/{bin_name}"));
-                    let is_hardlink = is_hard_links(&sharun, &bin_path).unwrap_or(false);
-                    if bin_path.exists() && is_hardlink {
+                    let bin_path = PathBuf::from(bin_dir).join(&bin_name);
+                    let is_exe = is_exe(&bin_path).unwrap_or(false);
+                    let is_elf = is_elf(&bin_path).unwrap_or(false);
+                    let is_hardlink = is_hardlink(&sharun, &bin_path).unwrap_or(false);
+                    if is_exe && (is_hardlink || !is_elf) {
                         let err = Command::new(&bin_path)
                             .envs(env::vars())
                             .args(exec_args)
@@ -280,8 +288,10 @@ fn main() {
         } else {
             eprintln!("Specify the executable from: '{bin_dir}'");
             if let Ok(dir) = Path::new(bin_dir).read_dir() {
-                for bin in dir {
-                    println!("{}", bin.unwrap().file_name().to_str().unwrap())
+                for bin in dir.flatten() {
+                    if is_exe(&bin.path()).unwrap_or(false) {
+                        println!("{}", bin.file_name().to_str().unwrap())
+                    }
                 }
             }
             exit(1)
@@ -291,23 +301,21 @@ fn main() {
         let mut appname: String = "".into();
         if !Path::new(appname_file).exists() {
             if let Ok(dir) = Path::new(&sharun_dir).read_dir() {
-                for entry in dir {
-                    if let Ok(entry) = entry {
-                        let path = entry.path();
-                        if path.is_file() {
-                            let name = entry.file_name();
-                            let name = name.to_str().unwrap();
-                            if name.ends_with(".desktop") {
-                                let data = read_to_string(path).unwrap_or_else(|err|{
-                                    eprintln!("Failed to read desktop file: {name}: {err}");
-                                    exit(1)
-                                });
-                                appname = data.split("\n").filter_map(|string| {
-                                    if string.starts_with("Exec=") {
-                                        Some(string.replace("Exec=", "").split_whitespace().next().unwrap_or("").into())
-                                    } else {None}
-                                }).next().unwrap_or_else(||"".into())
-                            }
+                for entry in dir.flatten() {
+                    let path = entry.path();
+                    if path.is_file() {
+                        let name = entry.file_name();
+                        let name = name.to_str().unwrap();
+                        if name.ends_with(".desktop") {
+                            let data = read_to_string(path).unwrap_or_else(|err|{
+                                eprintln!("Failed to read desktop file: {name}: {err}");
+                                exit(1)
+                            });
+                            appname = data.split("\n").filter_map(|string| {
+                                if string.starts_with("Exec=") {
+                                    Some(string.replace("Exec=", "").split_whitespace().next().unwrap_or("").into())
+                                } else {None}
+                            }).next().unwrap_or_else(||"".into())
                         }
                     }
                 }
@@ -321,7 +329,7 @@ fn main() {
             })
         }
 
-        if let Some(name) = appname.trim().split("\n").nth(0) {
+        if let Some(name) = appname.trim().split("\n").next() {
             appname = basename(name)
             .replace("'", "").replace("\"", "")
         } else {
@@ -349,12 +357,11 @@ fn main() {
         exit(1)
     });
 
-    let mut library_path: String;
-    if is_elf32_bin {
-        library_path = shared_lib32
+    let mut library_path = if is_elf32_bin {
+        shared_lib32
     } else {
-        library_path = shared_lib
-    }
+        shared_lib
+    };
 
     read_dotenv(&sharun_dir);
 
@@ -382,9 +389,7 @@ fn main() {
     if let Ok(lib_path_data) = read_to_string(lib_path_file) {
         let lib_path_data = lib_path_data.trim();
         let dirs: HashSet<&str> = lib_path_data.split("\n").map(|string|{
-            if let Some(dir) = string.split("/").nth(1) {
-                dir
-            } else {""}
+            string.split("/").nth(1).unwrap_or("")
         }).collect();
         for dir in dirs {
             let dir_path = &format!("{library_path}/{dir}");
@@ -421,13 +426,11 @@ fn main() {
                     env::set_var("GIMP2_PLUGINDIR", plugins)
                 }
             }
-            if dir.starts_with("tcl") {
-                if Path::new(&format!("{dir_path}/msgs")).exists() {
-                    add_to_env("TCL_LIBRARY", dir_path);
-                    let tk = &format!("{library_path}/{}", dir.replace("tcl", "tk"));
-                    if Path::new(&tk).exists() {
-                        add_to_env("TK_LIBRARY", tk)
-                    }
+            if dir.starts_with("tcl") && Path::new(&format!("{dir_path}/msgs")).exists() {
+                add_to_env("TCL_LIBRARY", dir_path);
+                let tk = &format!("{library_path}/{}", dir.replace("tcl", "tk"));
+                if Path::new(&tk).exists() {
+                    add_to_env("TK_LIBRARY", tk)
                 }
             }
             if dir.starts_with("gstreamer-") {
@@ -440,22 +443,23 @@ fn main() {
                 }
             }
             if dir.starts_with("gdk-pixbuf-") {
-                let mut find: Vec<bool> = Vec::new();
-                WalkDir::new(dir_path).into_iter()
-                    .filter_map(|entry| entry.ok())
-                    .for_each(|entry| {
-                        let path = entry.path();
-                        let name = entry.file_name().to_string_lossy();
-                        if name == "loaders" && path.is_dir() {
-                            env::set_var("GDK_PIXBUF_MODULEDIR", path);
-                            find.push(true)
-                        }
-                        if name == "loaders.cache" && path.is_file() {
-                            env::set_var("GDK_PIXBUF_MODULE_FILE", path);
-                            find.push(true)
-                        }
-                        if find.len() == 2 {return}
-                });
+                let mut is_loaders = false;
+                let mut is_loaders_cache = false;
+                for entry in WalkDir::new(dir_path).into_iter().flatten() {
+                    let path = entry.path();
+                    let name = entry.file_name().to_string_lossy();
+                    if name == "loaders" && path.is_dir() {
+                        env::set_var("GDK_PIXBUF_MODULEDIR", path);
+                        is_loaders = true
+                    }
+                    if name == "loaders.cache" && path.is_file() {
+                        env::set_var("GDK_PIXBUF_MODULE_FILE", path);
+                        is_loaders_cache = true
+                    }
+                    if is_loaders && is_loaders_cache {
+                        break
+                    }
+                }
             }
         }
         library_path = lib_path_data
@@ -474,46 +478,44 @@ fn main() {
             add_to_env("XDG_DATA_DIRS", "/usr/local/share");
             add_to_env("XDG_DATA_DIRS", "/usr/share");
             add_to_env("XDG_DATA_DIRS", &share);
-            for entry in dir {
-                if let Ok(entry) = entry {
-                    if entry.path().is_dir() {
-                        let name = entry.file_name();
-                        match name.to_str().unwrap() {
-                            "glvnd" =>  {
-                                let egl_vendor = &format!("{share}/glvnd/egl_vendor.d");
-                                if Path::new(egl_vendor).exists() {
-                                    add_to_env("__EGL_VENDOR_LIBRARY_DIRS", "/usr/share/glvnd/egl_vendor.d");
-                                    add_to_env("__EGL_VENDOR_LIBRARY_DIRS", egl_vendor)
-                                }
+            for entry in dir.flatten() {
+                if entry.path().is_dir() {
+                    let name = entry.file_name();
+                    match name.to_str().unwrap() {
+                        "glvnd" =>  {
+                            let egl_vendor = &format!("{share}/glvnd/egl_vendor.d");
+                            if Path::new(egl_vendor).exists() {
+                                add_to_env("__EGL_VENDOR_LIBRARY_DIRS", "/usr/share/glvnd/egl_vendor.d");
+                                add_to_env("__EGL_VENDOR_LIBRARY_DIRS", egl_vendor)
                             }
-                            "vulkan" =>  {
-                                let icd = &format!("{share}/vulkan/icd.d");
-                                if Path::new(icd).exists() {
-                                    add_to_env("VK_DRIVER_FILES", "/usr/share/vulkan/icd.d");
-                                    add_to_env("VK_DRIVER_FILES", icd)
-                                }
-                            }
-                            "X11" =>  {
-                                let xkb = &format!("{share}/X11/xkb");
-                                if Path::new(xkb).exists() {
-                                    env::set_var("XKB_CONFIG_ROOT",xkb)
-                                }
-                            }
-                            "glib-2.0" =>  {
-                                let schemas = &format!("{share}/glib-2.0/schemas");
-                                if Path::new(schemas).exists() {
-                                    add_to_env("GSETTINGS_SCHEMA_DIR", "/usr/share/glib-2.0/schemas");
-                                    add_to_env("GSETTINGS_SCHEMA_DIR", schemas)
-                                }
-                            }
-                            "gimp" =>  {
-                                let gimp = &format!("{share}/gimp/2.0");
-                                if Path::new(gimp).exists() {
-                                    env::set_var("GIMP2_DATADIR",gimp)
-                                }
-                            }
-                            _ => {}
                         }
+                        "vulkan" =>  {
+                            let icd = &format!("{share}/vulkan/icd.d");
+                            if Path::new(icd).exists() {
+                                add_to_env("VK_DRIVER_FILES", "/usr/share/vulkan/icd.d");
+                                add_to_env("VK_DRIVER_FILES", icd)
+                            }
+                        }
+                        "X11" =>  {
+                            let xkb = &format!("{share}/X11/xkb");
+                            if Path::new(xkb).exists() {
+                                env::set_var("XKB_CONFIG_ROOT", xkb)
+                            }
+                        }
+                        "glib-2.0" =>  {
+                            let schemas = &format!("{share}/glib-2.0/schemas");
+                            if Path::new(schemas).exists() {
+                                add_to_env("GSETTINGS_SCHEMA_DIR", "/usr/share/glib-2.0/schemas");
+                                add_to_env("GSETTINGS_SCHEMA_DIR", schemas)
+                            }
+                        }
+                        "gimp" =>  {
+                            let gimp = &format!("{share}/gimp/2.0");
+                            if Path::new(gimp).exists() {
+                                env::set_var("GIMP2_DATADIR",gimp)
+                            }
+                        }
+                        _ => {}
                     }
                 }
             }
@@ -522,25 +524,23 @@ fn main() {
 
     if etc_dir.exists() {
         if let Ok(dir) = etc_dir.read_dir() {
-            for entry in dir {
-                if let Ok(entry) = entry {
-                    if entry.path().is_dir() {
-                        let name = entry.file_name();
-                        match name.to_str().unwrap() {
-                            "fonts" => {
-                                let fonts_conf =etc_dir.join("fonts/fonts.conf");
-                                if fonts_conf.exists() {
-                                    env::set_var("FONTCONFIG_FILE", fonts_conf)
-                                }
+            for entry in dir.flatten() {
+                if entry.path().is_dir() {
+                    let name = entry.file_name();
+                    match name.to_str().unwrap() {
+                        "fonts" => {
+                            let fonts_conf = etc_dir.join("fonts/fonts.conf");
+                            if fonts_conf.exists() {
+                                env::set_var("FONTCONFIG_FILE", fonts_conf)
                             }
-                            "gimp" => {
-                                let conf =etc_dir.join("gimp/2.0");
-                                if conf.exists() {
-                                    env::set_var("GIMP2_SYSCONFDIR", conf)
-                                }
-                            }
-                            _ => {}
                         }
+                        "gimp" => {
+                            let conf = etc_dir.join("gimp/2.0");
+                            if conf.exists() {
+                                env::set_var("GIMP2_SYSCONFDIR", conf)
+                            }
+                        }
+                        _ => {}
                     }
                 }
             }
