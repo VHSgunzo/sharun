@@ -95,6 +95,31 @@ cp ./target/$(uname -m)-unknown-linux-musl/release/sharun .
 # Screenshots:
 ![tree](img/tree.png)
 
+Environment variables that are set if sharun finds a directory or file:
+* `PATH` -- `${SHARUN_DIR}/bin`
+* `PYTHONHOME` and `PYTHONDONTWRITEBYTECODE` -- `${SHARUN_DIR}/shared/$LIB/python*`
+* `PERLLIB` -- `${SHARUN_DIR}/shared/$LIB/perl*`
+* `GCONV_PATH` -- `${SHARUN_DIR}/shared/$LIB/gconv`
+* `GIO_MODULE_DIR` -- `${SHARUN_DIR}/shared/$LIB/gio/modules`
+* `GTK_PATH`, `GTK_EXE_PREFIX` and `GTK_DATA_PREFIX` -- `${SHARUN_DIR}/shared/$LIB/gtk-*`
+* `QT_PLUGIN_PATH` -- `${SHARUN_DIR}/shared/$LIB/qt*/plugins`
+* `BABL_PATH` -- `${SHARUN_DIR}/shared/$LIB/babl-*`
+* `GEGL_PATH` -- `${SHARUN_DIR}/shared/$LIB/gegl-*`
+* `GIMP2_PLUGINDIR` -- `${SHARUN_DIR}/shared/$LIB/gimp/2.0`
+* `TCL_LIBRARY` -- `${SHARUN_DIR}/shared/$LIB/tcl*`
+* `TK_LIBRARY` -- `${SHARUN_DIR}/shared/$LIB/tk*`
+* `GST_PLUGIN_PATH`, `GST_PLUGIN_SYSTEM_PATH`, `GST_PLUGIN_SYSTEM_PATH_1_0`, and `GST_PLUGIN_SCANNER` -- `${SHARUN_DIR}/shared/$LIB/gstreamer-*`
+* `GDK_PIXBUF_MODULEDIR` and `GDK_PIXBUF_MODULE_FILE` -- `${SHARUN_DIR}/shared/$LIB/gdk-pixbuf-*`
+
+* `XDG_DATA_DIRS` -- `${SHARUN_DIR}/share`
+* `VK_DRIVER_FILES` -- `${SHARUN_DIR}/share/vulkan/icd.d`
+* `XKB_CONFIG_ROOT` -- `${SHARUN_DIR}/share/X11/xkb`
+* `GSETTINGS_SCHEMA_DIR` -- `${SHARUN_DIR}/share/glib-2.0/schemas`
+* `GIMP2_DATADIR` -- `${SHARUN_DIR}/share/gimp/2.0`
+
+* `FONTCONFIG_FILE` -- `${SHARUN_DIR}/etc/fonts/fonts.conf`
+* `GIMP2_SYSCONFDIR` -- `${SHARUN_DIR}/etc/gimp/2.0`
+
 # Projects that use sharun:
 * [pelfCreator](https://github.com/xplshn/pelf/blob/pelf-ng/pelfCreator)
 * [AppBundleHUB](https://github.com/xplshn/AppBundleHUB)

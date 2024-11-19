@@ -398,6 +398,12 @@ fn main() {
             if dir == "gconv" {
                 add_to_env("GCONV_PATH", dir_path)
             }
+            if dir == "gio" {
+                let modules = &format!("{dir_path}/modules");
+                if Path::new(modules).exists() {
+                    env::set_var("GIO_MODULE_DIR", modules)
+                }
+            }
             if dir.starts_with("gtk-") {
                 add_to_env("GTK_PATH", dir_path);
                 env::set_var("GTK_EXE_PREFIX", &sharun_dir);
