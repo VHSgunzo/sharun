@@ -92,10 +92,10 @@ cp ./target/$(uname -m)-unknown-linux-musl/release/sharun .
 
 * Also you can package the `sharun directory` with your applications into a single executable file using [wrappe](https://github.com/Systemcluster/wrappe)
 
-# Screenshots:
+## Screenshots:
 ![tree](img/tree.png)
 
-Environment variables that are set if sharun finds a directory or file:
+## Environment variables that are set if sharun finds a directory or file:
 * `PATH` -- `${SHARUN_DIR}/bin`
 * `PYTHONHOME` and `PYTHONDONTWRITEBYTECODE` -- `${SHARUN_DIR}/shared/$LIB/python*`
 * `PERLLIB` -- `${SHARUN_DIR}/shared/$LIB/perl*`
@@ -120,7 +120,7 @@ Environment variables that are set if sharun finds a directory or file:
 * `FONTCONFIG_FILE` -- `${SHARUN_DIR}/etc/fonts/fonts.conf`
 * `GIMP2_SYSCONFDIR` -- `${SHARUN_DIR}/etc/gimp/2.0`
 
-# Projects that use sharun:
+## Projects that use sharun:
 * [pelfCreator](https://github.com/xplshn/pelf/blob/pelf-ng/pelfCreator)
 * [AppBundleHUB](https://github.com/xplshn/AppBundleHUB)
 * [android-tools-AppImage](https://github.com/Samueru-sama/android-tools-AppImage)
