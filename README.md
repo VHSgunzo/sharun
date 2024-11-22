@@ -113,6 +113,7 @@ cp ./target/$(uname -m)-unknown-linux-musl/release/sharun .
 
 * `XDG_DATA_DIRS` -- `${SHARUN_DIR}/share`
 * `VK_DRIVER_FILES` -- `${SHARUN_DIR}/share/vulkan/icd.d`
+* `__EGL_VENDOR_LIBRARY_DIRS` -- `${SHARUN_DIR}/share/glvnd/egl_vendor.d`
 * `XKB_CONFIG_ROOT` -- `${SHARUN_DIR}/share/X11/xkb`
 * `GSETTINGS_SCHEMA_DIR` -- `${SHARUN_DIR}/share/glib-2.0/schemas`
 * `GIMP2_DATADIR` -- `${SHARUN_DIR}/share/gimp/2.0`
