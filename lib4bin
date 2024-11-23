@@ -126,7 +126,7 @@ get_libs() {
             sleep $STRACE_TIME
             local pids="$(cut -d ' ' -f1<"$libs_file"|sort -u)"
             kill $pids 2>/dev/null
-            local libs="$(echo -e "$(sed '/nvidia/d;/libcuda/d;/ENOENT/d;/glibc-hwcaps/d'<"$libs_file"|\
+            local libs="$(echo -e "$(sed '/nvidia/d;/libcuda/d;/ENOENT/d;/unfinished/d'<"$libs_file"|\
                           grep -oP '".*lib.*\.so.*"'|sed -u 's|"||g')")\n"
             rm -f "$libs_file"
     fi
