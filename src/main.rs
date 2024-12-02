@@ -1,5 +1,5 @@
 use std::{
-    env, fs, io,
+    env, fs,
     ffi::CString,
     str::FromStr,
     collections::HashSet,
@@ -12,6 +12,9 @@ use std::{
 
 use which::which;
 use walkdir::WalkDir;
+use flate2::read::DeflateDecoder;
+use nix::unistd::{AccessFlags, access};
+use include_file_compress::include_file_compress_deflate;
 
 
 const SHARUN_NAME: &str = env!("CARGO_PKG_NAME");
@@ -69,18 +72,32 @@ fn dirname(path: &str) -> String {
     pieces.join(&'/'.to_string())
 }
 
+fn is_hardlink(path1: &Path, path2: &Path) -> bool {
+    if let Ok(metadata1) = fs::metadata(path1) {
+        if let Ok(metadata2) = fs::metadata(path2) {
+            return metadata1.ino() == metadata2.ino()
+        }
+    }
+    false
+}
+
+fn is_writable(path: &str) -> bool {
+    access(path, AccessFlags::W_OK).is_ok()
+}
+
 fn is_file(path: &str) -> bool {
-    let path = Path::new(path);
-    path.is_file()
+    Path::new(path).is_file()
 }
 
-fn is_exe(file_path: &PathBuf) -> Result<bool> {
-    let metadata = fs::metadata(file_path)?;
-    Ok(metadata.is_file() && metadata.permissions().mode() & 0o111 != 0)
+fn is_exe(path: &PathBuf) -> bool {
+    if let Ok(metadata) = fs::metadata(path) {
+        return metadata.is_file() && metadata.permissions().mode() & 0o111 != 0
+    }
+    false
 }
 
-fn is_elf32(file_path: &str) -> Result<bool> {
-    let mut file = File::open(file_path)?;
+fn is_elf32(path: &str) -> Result<bool> {
+    let mut file = File::open(path)?;
     let mut buff = [0u8; 5];
     file.read_exact(&mut buff)?;
     if &buff[0..4] != b"\x7fELF" {
@@ -121,15 +138,9 @@ fn read_dotenv(dotenv_dir: &str) {
     }
 }
 
-fn is_hardlink(file1: &Path, file2: &Path) -> io::Result<bool> {
-    let metadata1 = fs::metadata(file1)?;
-    let metadata2 = fs::metadata(file2)?;
-    Ok(metadata1.ino() == metadata2.ino())
-}
-
-fn gen_library_path(library_path: &mut String, lib_path_file: &String) {
+fn gen_library_path(library_path: &str, lib_path_file: &String) {
     let mut new_paths: Vec<String> = Vec::new();
-    WalkDir::new(&mut *library_path)
+    WalkDir::new(library_path)
         .into_iter()
         .filter_map(|entry| entry.ok())
         .for_each(|entry| {
@@ -148,7 +159,7 @@ fn gen_library_path(library_path: &mut String, lib_path_file: &String) {
     if let Err(err) = write(lib_path_file,
         format!("+:{}", &new_paths.join(":"))
             .replace(":", "\n")
-            .replace(&*library_path, "+")
+            .replace(library_path, "+")
     ) {
         eprintln!("Failed to write lib.path: {lib_path_file}: {err}");
         exit(1)
@@ -168,7 +179,7 @@ fn print_usage() {
 
 [ Options ]:
      l,  lib4bin [ARGS]         Launch the built-in lib4bin
-    -g,  --gen-lib-path         Generate library path file
+    -g,  --gen-lib-path         Generate a lib.path file
     -v,  --version              Print version
     -h,  --help                 Print help
 
@@ -180,8 +191,6 @@ fn print_usage() {
 }
 
 fn main() {
-    let lib4bin = include_bytes!("../lib4bin");
-
     let sharun: PathBuf = env::current_exe().unwrap();
     let mut exec_args: Vec<String> = env::args().collect();
 
@@ -231,15 +240,20 @@ fn main() {
                     return
                 }
                 "-g" | "--gen-lib-path" => {
-                    for mut library_path in [shared_lib, shared_lib32] {
+                    for library_path in [shared_lib, shared_lib32] {
                         if Path::new(&library_path).exists() {
                             let lib_path_file = &format!("{library_path}/lib.path");
-                            gen_library_path(&mut library_path, lib_path_file)
+                            gen_library_path(&library_path, lib_path_file)
                         }
                     }
                     return
                 }
                 "l" | "lib4bin" => {
+                    let lib4bin_compressed = include_file_compress_deflate!("lib4bin", 9);
+                    let mut decoder = DeflateDecoder::new(&lib4bin_compressed[..]);
+                    let mut lib4bin = Vec::new();
+                    decoder.read_to_end(&mut lib4bin).unwrap();
+                    drop(decoder);
                     exec_args.remove(0);
                     let cmd = Command::new("bash")
                         .env("SHARUN", sharun)
@@ -250,7 +264,7 @@ fn main() {
                         .spawn();
                     match cmd {
                         Ok(mut bash) => {
-                            bash.stdin.take().unwrap().write_all(lib4bin).unwrap_or_else(|err|{
+                            bash.stdin.take().unwrap().write_all(&lib4bin).unwrap_or_else(|err|{
                                 eprintln!("Failed to write lib4bin to bash stdin: {err}");
                                 exit(1)
                             });
@@ -265,8 +279,8 @@ fn main() {
                 _ => {
                     bin_name = exec_args.remove(0);
                     let bin_path = PathBuf::from(bin_dir).join(&bin_name);
-                    if is_exe(&bin_path).unwrap_or(false) &&
-                        (is_hardlink(&sharun, &bin_path).unwrap_or(false) ||
+                    if is_exe(&bin_path) &&
+                        (is_hardlink(&sharun, &bin_path) ||
                         !Path::new(&shared_bin).join(&bin_name).exists())
                     {
                         add_to_env("PATH", bin_dir);
@@ -283,7 +297,7 @@ fn main() {
             eprintln!("Specify the executable from: '{bin_dir}'");
             if let Ok(dir) = Path::new(bin_dir).read_dir() {
                 for bin in dir.flatten() {
-                    if is_exe(&bin.path()).unwrap_or(false) {
+                    if is_exe(&bin.path()) {
                         println!("{}", bin.file_name().to_str().unwrap())
                     }
                 }
@@ -374,13 +388,13 @@ fn main() {
         env::remove_var("SHARUN_WORKING_DIR")
     }
 
-    let etc_dir = PathBuf::from(format!("{sharun_dir}/etc"));
-    let share_dir = PathBuf::from(format!("{sharun_dir}/share"));
-
     let lib_path_file = &format!("{library_path}/lib.path");
-    if !Path::new(lib_path_file).exists() {
-        gen_library_path(&mut library_path, lib_path_file)
+    if !Path::new(lib_path_file).exists() && is_writable(&library_path) {
+        gen_library_path(&library_path, lib_path_file)
     }
+
+    add_to_env("PATH", bin_dir);
+
     if let Ok(lib_path_data) = read_to_string(lib_path_file) {
         let lib_path_data = lib_path_data.trim();
         let dirs: HashSet<&str> = lib_path_data.split("\n").map(|string|{
@@ -407,7 +421,14 @@ fn main() {
             if dir.starts_with("gtk-") {
                 add_to_env("GTK_PATH", dir_path);
                 env::set_var("GTK_EXE_PREFIX", &sharun_dir);
-                env::set_var("GTK_DATA_PREFIX", &sharun_dir)
+                env::set_var("GTK_DATA_PREFIX", &sharun_dir);
+                for entry in WalkDir::new(dir_path).into_iter().flatten() {
+                    let path = entry.path();
+                    if path.is_file() && entry.file_name().to_string_lossy() == "immodules.cache" {
+                        env::set_var("GTK_IM_MODULE_FILE", path);
+                        break
+                    }
+                }
             }
             if dir.starts_with("qt") {
                 let plugins = &format!("{dir_path}/plugins");
@@ -425,6 +446,12 @@ fn main() {
                 let plugins = &format!("{dir_path}/2.0");
                 if Path::new(plugins).exists() {
                     env::set_var("GIMP2_PLUGINDIR", plugins)
+                }
+            }
+            if dir == "libdecor" {
+                let plugins = &format!("{dir_path}/plugins-1");
+                if Path::new(plugins).exists() {
+                    env::set_var("LIBDECOR_PLUGIN_DIR", plugins)
                 }
             }
             if dir.starts_with("tcl") && Path::new(&format!("{dir_path}/msgs")).exists() {
@@ -466,13 +493,9 @@ fn main() {
         library_path = lib_path_data
             .replace("\n", ":")
             .replace("+", &library_path)
-    } else {
-        eprintln!("Failed to read lib.path: {lib_path_file}");
-        exit(1)
     }
 
-    add_to_env("PATH", bin_dir);
-
+    let share_dir = PathBuf::from(format!("{sharun_dir}/share"));
     if share_dir.exists() {
         if let Ok(dir) = share_dir.read_dir() {
             let share = share_dir.to_string_lossy();
@@ -523,6 +546,7 @@ fn main() {
         }
     }
 
+    let etc_dir = PathBuf::from(format!("{sharun_dir}/etc"));
     if etc_dir.exists() {
         if let Ok(dir) = etc_dir.read_dir() {
             for entry in dir.flatten() {

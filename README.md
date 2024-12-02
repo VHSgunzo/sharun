@@ -38,7 +38,7 @@ cp ./target/$(uname -m)-unknown-linux-musl/release/sharun .
 
 [ Options ]:
      l,  lib4bin [ARGS]         Launch the built-in lib4bin
-    -g,  --gen-lib-path         Generate library path file
+    -g,  --gen-lib-path         Generate a lib.path file
     -v,  --version              Print version
     -h,  --help                 Print help
 
@@ -50,7 +50,7 @@ cp ./target/$(uname -m)-unknown-linux-musl/release/sharun .
 
 ## Usage lib4bin:
 ```
-[ Usage ]: lib4bin [OPTIONS] /path/executable -- [STRACE CMD ARGS]
+[ Usage ]: lib4bin [OPTIONS] /path/executable -- [STRACE MODE EXEC ARGS]
 
 [ Options ]:
   -a, --any-executable     Pack any executable (env: ANY_EXECUTABLE=1)
@@ -59,7 +59,8 @@ cp ./target/$(uname -m)-unknown-linux-musl/release/sharun .
   -g, --gen-lib-path       Generate a lib.path file (env: GEN_LIB_PATH=1)
   -h, --help               Show this message
   -i, --patch-interpreter  Patch INTERPRETER to a relative path (env: PATCH_INTERPRETER=1)
-  -l, --libs-only          Pack only libraries (env: LIBS_ONLY=1)
+  -k, --with-hooks         Pack additional files required for libraries (env: WITH_HOOKS=1)
+  -l, --libs-only          Pack only libraries without executables (env: LIBS_ONLY=1)
   -n, --not-one-dir        Separate directories for each executable (env: ONE_DIR=0)
   -p, --hard-links         Pack sharun and create hard links (env: HARD_LINKS=1)
   -q, --quiet-mode         Show only errors (env: QUIET_MODE=1)
@@ -110,6 +111,8 @@ cp ./target/$(uname -m)-unknown-linux-musl/release/sharun .
 * `TK_LIBRARY` -- `${SHARUN_DIR}/shared/$LIB/tk*`
 * `GST_PLUGIN_PATH`, `GST_PLUGIN_SYSTEM_PATH`, `GST_PLUGIN_SYSTEM_PATH_1_0`, and `GST_PLUGIN_SCANNER` -- `${SHARUN_DIR}/shared/$LIB/gstreamer-*`
 * `GDK_PIXBUF_MODULEDIR` and `GDK_PIXBUF_MODULE_FILE` -- `${SHARUN_DIR}/shared/$LIB/gdk-pixbuf-*`
+* `LIBDECOR_PLUGIN_DIR` -- `${SHARUN_DIR}/shared/$LIB/libdecor/plugins-1`
+* `GTK_IM_MODULE_FILE` -- `${SHARUN_DIR}/shared/$LIB/gtk-*/*/immodules.cache`
 
 * `XDG_DATA_DIRS` -- `${SHARUN_DIR}/share`
 * `VK_DRIVER_FILES` -- `${SHARUN_DIR}/share/vulkan/icd.d`
