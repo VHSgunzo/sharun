@@ -113,6 +113,9 @@ cp ./target/$(uname -m)-unknown-linux-musl/release/sharun .
 * `GDK_PIXBUF_MODULEDIR` and `GDK_PIXBUF_MODULE_FILE` -- `${SHARUN_DIR}/shared/$LIB/gdk-pixbuf-*`
 * `LIBDECOR_PLUGIN_DIR` -- `${SHARUN_DIR}/shared/$LIB/libdecor/plugins-1`
 * `GTK_IM_MODULE_FILE` -- `${SHARUN_DIR}/shared/$LIB/gtk-*/*/immodules.cache`
+* `LIBGL_DRIVERS_PATH` -- `${SHARUN_DIR}/shared/$LIB/dri`
+* `SPA_PLUGIN_DIR` -- `${SHARUN_DIR}/shared/$LIB/spa-*`
+* `PIPEWIRE_MODULE_DIR` -- `${SHARUN_DIR}/shared/$LIB/pipewire-*`
 
 * `XDG_DATA_DIRS` -- `${SHARUN_DIR}/share`
 * `VK_DRIVER_FILES` -- `${SHARUN_DIR}/share/vulkan/icd.d`

@@ -418,6 +418,15 @@ fn main() {
                     env::set_var("GIO_MODULE_DIR", modules)
                 }
             }
+            if dir == "dri" {
+                env::set_var("LIBGL_DRIVERS_PATH", dir_path)
+            }
+            if dir.starts_with("spa-") {
+                env::set_var("SPA_PLUGIN_DIR", dir_path)
+            }
+            if dir.starts_with("pipewire-") {
+                env::set_var("PIPEWIRE_MODULE_DIR", dir_path)
+            }
             if dir.starts_with("gtk-") {
                 add_to_env("GTK_PATH", dir_path);
                 env::set_var("GTK_EXE_PREFIX", &sharun_dir);
