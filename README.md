@@ -123,6 +123,7 @@ cp ./target/$(uname -m)-unknown-linux-musl/release/sharun .
 * `XKB_CONFIG_ROOT` -- `${SHARUN_DIR}/share/X11/xkb`
 * `GSETTINGS_SCHEMA_DIR` -- `${SHARUN_DIR}/share/glib-2.0/schemas`
 * `GIMP2_DATADIR` -- `${SHARUN_DIR}/share/gimp/2.0`
+* `TERMINFO` -- `${SHARUN_DIR}/share/terminfo`
 
 * `FONTCONFIG_FILE` -- `${SHARUN_DIR}/etc/fonts/fonts.conf`
 * `GIMP2_SYSCONFDIR` -- `${SHARUN_DIR}/etc/gimp/2.0`

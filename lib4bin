@@ -620,6 +620,23 @@ for binary in "${BINARY_LIST[@]}"
                                                                                         try_cp -T "$sys_vk_icd_dir" "$dst_vk_icd_dir"
                                                                                         sed -i 's|/usr/lib||g;s|/.*-linux-gnu||g;s|"/|"|g' "$dst_vk_icd_dir"/*
                                                                                 fi ;;
+                                                                            */libncursesw.so*|*/libcursesw.so*|*/libcurses.so*)
+                                                                                sys_terminfo_dir='/usr/share/terminfo'
+                                                                                dst_terminfo_dir="$dst_dir/share/terminfo"
+                                                                                if [[ -d "$sys_terminfo_dir" && ! -d "$dst_terminfo_dir" ]]
+                                                                                    then
+                                                                                        info_msg "$YELLOW[ HOOK ]:$GREEN copy terminfo..."
+                                                                                        try_mkdir "$dst_terminfo_dir"
+                                                                                        try_cp -T "$sys_terminfo_dir" "$dst_terminfo_dir"
+                                                                                fi
+                                                                                sys_tabset_dir='/usr/share/tabset'
+                                                                                dst_tabset_dir="$dst_dir/share/tabset"
+                                                                                if [[ -d "$sys_tabset_dir" && ! -d "$dst_tabset_dir" ]]
+                                                                                    then
+                                                                                        info_msg "$YELLOW[ HOOK ]:$GREEN copy tabset..."
+                                                                                        try_mkdir "$dst_tabset_dir"
+                                                                                        try_cp -T "$sys_tabset_dir" "$dst_tabset_dir"
+                                                                                fi ;;
                                                                         esac
                                                                 fi
                                                                 LIBRARIES["$lib_dst_pth"]=1

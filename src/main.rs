@@ -1,8 +1,8 @@
 use std::{
     env, fs,
-    ffi::CString,
     str::FromStr,
     collections::HashSet,
+    ffi::{CString, OsStr},
     path::{Path, PathBuf},
     process::{Command, Stdio, exit},
     io::{Read, Result, Error, Write},
@@ -106,16 +106,17 @@ fn is_elf32(path: &str) -> Result<bool> {
     Ok(buff[4] == 1)
 }
 
-fn get_env_var(var: &str) -> String {
-    env::var(var).unwrap_or("".into())
+fn get_env_var<K: AsRef<OsStr>>(key: K) -> String {
+    env::var(key).unwrap_or("".into())
 }
 
-fn add_to_env(var: &str, val: &str) {
-    let old_val = get_env_var(var);
+fn add_to_env<K: AsRef<OsStr>, V: AsRef<OsStr>>(key: K, val: V) {
+    let (key, val) = (key.as_ref(), val.as_ref().to_str().unwrap());
+    let old_val = get_env_var(key);
     if old_val.is_empty() {
-        env::set_var(var, val)
+        env::set_var(key, val)
     } else if !old_val.contains(val) {
-        env::set_var(var, format!("{val}:{old_val}"))
+        env::set_var(key, format!("{val}:{old_val}"))
     }
 }
 
@@ -507,46 +508,49 @@ fn main() {
     let share_dir = PathBuf::from(format!("{sharun_dir}/share"));
     if share_dir.exists() {
         if let Ok(dir) = share_dir.read_dir() {
-            let share = share_dir.to_string_lossy();
             add_to_env("XDG_DATA_DIRS", "/usr/local/share");
             add_to_env("XDG_DATA_DIRS", "/usr/share");
-            add_to_env("XDG_DATA_DIRS", &share);
+            add_to_env("XDG_DATA_DIRS", &share_dir);
             for entry in dir.flatten() {
-                if entry.path().is_dir() {
+                let entry_path = entry.path();
+                if entry_path.is_dir() {
                     let name = entry.file_name();
                     match name.to_str().unwrap() {
                         "glvnd" =>  {
-                            let egl_vendor = &format!("{share}/glvnd/egl_vendor.d");
-                            if Path::new(egl_vendor).exists() {
+                            let egl_vendor = &entry_path.join("egl_vendor.d");
+                            if egl_vendor.exists() {
                                 add_to_env("__EGL_VENDOR_LIBRARY_DIRS", "/usr/share/glvnd/egl_vendor.d");
                                 add_to_env("__EGL_VENDOR_LIBRARY_DIRS", egl_vendor)
                             }
                         }
                         "vulkan" =>  {
-                            let icd = &format!("{share}/vulkan/icd.d");
-                            if Path::new(icd).exists() {
+                            let icd = &entry_path.join("icd.d");
+                            if icd.exists() {
                                 add_to_env("VK_DRIVER_FILES", "/usr/share/vulkan/icd.d");
                                 add_to_env("VK_DRIVER_FILES", icd)
                             }
                         }
                         "X11" =>  {
-                            let xkb = &format!("{share}/X11/xkb");
-                            if Path::new(xkb).exists() {
+                            let xkb = &entry_path.join("xkb");
+                            if xkb.exists() {
                                 env::set_var("XKB_CONFIG_ROOT", xkb)
                             }
                         }
                         "glib-2.0" =>  {
-                            let schemas = &format!("{share}/glib-2.0/schemas");
-                            if Path::new(schemas).exists() {
+                            let schemas = &entry_path.join("schemas");
+                            if schemas.exists() {
                                 add_to_env("GSETTINGS_SCHEMA_DIR", "/usr/share/glib-2.0/schemas");
                                 add_to_env("GSETTINGS_SCHEMA_DIR", schemas)
                             }
                         }
                         "gimp" =>  {
-                            let gimp = &format!("{share}/gimp/2.0");
-                            if Path::new(gimp).exists() {
-                                env::set_var("GIMP2_DATADIR",gimp)
+                            let gimp2_datadir = &entry_path.join("2.0");
+                            if gimp2_datadir.exists() {
+                                env::set_var("GIMP2_DATADIR",gimp2_datadir)
                             }
+                        }
+                        "terminfo" =>  {
+                            env::set_var("TERMINFO",entry_path)
                         }
                         _ => {}
                     }
@@ -559,19 +563,20 @@ fn main() {
     if etc_dir.exists() {
         if let Ok(dir) = etc_dir.read_dir() {
             for entry in dir.flatten() {
-                if entry.path().is_dir() {
+                let entry_path = entry.path();
+                if entry_path.is_dir() {
                     let name = entry.file_name();
                     match name.to_str().unwrap() {
                         "fonts" => {
-                            let fonts_conf = etc_dir.join("fonts/fonts.conf");
+                            let fonts_conf = entry_path.join("fonts.conf");
                             if fonts_conf.exists() {
                                 env::set_var("FONTCONFIG_FILE", fonts_conf)
                             }
                         }
                         "gimp" => {
-                            let conf = etc_dir.join("gimp/2.0");
-                            if conf.exists() {
-                                env::set_var("GIMP2_SYSCONFDIR", conf)
+                            let gimp2_sysconfdir = entry_path.join("2.0");
+                            if gimp2_sysconfdir.exists() {
+                                env::set_var("GIMP2_SYSCONFDIR", gimp2_sysconfdir)
                             }
                         }
                         _ => {}
