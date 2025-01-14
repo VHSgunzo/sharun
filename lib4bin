@@ -433,7 +433,7 @@ for binary in "${BINARY_LIST[@]}"
                                                 SHARUN="${SHARUN:="$TMP_SHARUN"}"
                                                 if [ ! -x "$SHARUN" ]
                                                     then
-                                                        if grep -q '^http'<<<"$SHARUN"
+                                                        if [[ "${SHARUN,,}" =~ ^http ]]
                                                             then
                                                                 SHARUN_URL="$SHARUN"
                                                                 SHARUN="$TMP_SHARUN"
@@ -476,22 +476,25 @@ for binary in "${BINARY_LIST[@]}"
                                                     then
                                                         repath_needed_libs "$binary_dst_pth" "$needed_libs"
                                                         try_set_rpath "$binary_dst_pth"
-                                                        if [ "$CREATE_LINKS" == 1 ]
-                                                            then
-                                                                try_mkdir "$sharun_bin_dir_pth"
-                                                                [ "$hard_links" == 1 ] && \
-                                                                    unset ln_args||ln_args='-s'
-                                                                (try_cd "$sharun_bin_dir_pth"
-                                                                [ "$VERBOSE" != 1 ]||echo -n "ln: "
-                                                                ln $varg -f $ln_args ../sharun "$binary_name"||exit 1
-                                                                if [ -n "$binary_real_name" ]
-                                                                    then
-                                                                        [ "$VERBOSE" != 1 ]||echo -n "ln: "
-                                                                        ln $varg $ln_args ../sharun "$binary_real_name"||exit 1
-                                                                fi)||exit 1
-                                                        fi
                                                 fi
                                                 BINARIES["$binary_dst_pth"]=1
+                                        fi
+                                        if [ "$CREATE_LINKS" == 1 ]
+                                            then
+                                                try_mkdir "$sharun_bin_dir_pth"
+                                                [ "$hard_links" == 1 ] && \
+                                                    unset ln_args||ln_args='-s'
+                                                (try_cd "$sharun_bin_dir_pth"
+                                                if [[ ! -e "$binary_name" && ! -L "$binary_name" ]]
+                                                    then
+                                                        [ "$VERBOSE" != 1 ]||echo -n "ln: "
+                                                        ln $varg $ln_args ../sharun "$binary_name"||exit 1
+                                                fi
+                                                if [[ -n "$binary_real_name" && ! -e "$binary_real_name" && ! -L "$binary_real_name" ]]
+                                                    then
+                                                        [ "$VERBOSE" != 1 ]||echo -n "ln: "
+                                                        ln $varg $ln_args ../sharun "$binary_real_name"||exit 1
+                                                fi)||exit 1
                                         fi
                                 fi
                                 for lib_src_pth in $LIBS
