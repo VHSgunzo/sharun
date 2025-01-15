@@ -131,10 +131,12 @@ ldd_libs() {
 
 get_libs() {
     unset libs libs4libs
-    if [[ "$STRACE_MODE" == 1 && ! -n "$IS_SO" ]]
+    if [ "$STRACE_MODE" == 1 ] && ! is_so
         then
             local libs_file="/tmp/libs.$$"
-            strace -f -e trace=openat --always-show-pid -o "$libs_file" "$1" "${STRACE_CMD_ARGS[@]}" &>/dev/null &
+            [[ "$(strace --help)" =~ always-show-pid ]] && \
+            STRACE_ARGS='--always-show-pid'||unset STRACE_ARGS
+            strace -f -e trace=openat $STRACE_ARGS -o "$libs_file" "$1" "${STRACE_CMD_ARGS[@]}" &>/dev/null &
             sleep $STRACE_TIME
             local pids="$(cut -d ' ' -f1<"$libs_file"|sort -u)"
             kill $pids 2>/dev/null
@@ -209,6 +211,8 @@ try_cd() {
 }
 
 find_so() { find "$@" -name '*.so' -o -name '*.so.*' 2>/dev/null ; }
+
+is_so() { [ -n "$IS_SO" ] && [[ "${binary_name,,}" =~ .*(\.so$|\.so\..*) || "${binary_real_name,,}" =~ .*(\.so$|\.so\..*) ]] ; }
 
 check_url_stat_code() {
     set -o pipefail
@@ -400,6 +404,7 @@ for binary in "${BINARY_LIST[@]}"
                 IS_ELF32="$(grep -q 'ELF 32-bit'<<<"$FILE_INFO")"
                 IS_SO="$(grep -o 'shared object'<<<"$FILE_INFO")"
                 IS_EXECUTABLE="$(grep -o 'executable'<<<"$FILE_INFO")"
+                IS_EXECUTABLE="${IS_EXECUTABLE:=$(([ -n "$IS_SO" ] && ! is_so) && echo executable)}"
                 info_msg "$YELLOW[ $binary_number ]: $BLUE[$binary_name] ${GREEN}..."
                 if [ "$HARD_LINKS" == 1 ] && [[ -n "$IS_SCRIPT" || -n "$IS_STATIC" ]]
                     then
@@ -408,12 +413,11 @@ for binary in "${BINARY_LIST[@]}"
                 fi
                 hard_links=${HARD_LINKS:=0}
                 with_sharun=${WITH_SHARUN:=0}
-                if [[ -n "$IS_EXECUTABLE" || -n "$IS_SO" ]] && [[ "$ANY_EXECUTABLE" == 1 || -n "$IS_ELF" ]]
+                if ([ -n "$IS_EXECUTABLE" ] || is_so) && [[ "$ANY_EXECUTABLE" == 1 || -n "$IS_ELF" ]]
                     then
                         needed_libs="$(print_needed "$binary_src_pth")"
                         LIBS="$(get_libs "$binary_src_pth" "$needed_libs")"
-                        [ -n "$IS_SO" ] && \
-                        LIBS="$(echo -e "$LIBS\n$binary"|sort -u|sed '/^$/d')"
+                        is_so && LIBS="$(echo -e "$LIBS\n$binary"|sort -u|sed '/^$/d')"
                         if [[ -n "$LIBS" && ! -n "$IS_SCRIPT" && ! -n "$IS_STATIC" ]]
                             then
                                 INTERPRETER="$(basename "$(grep 'ld-linux'<<<"$LIBS"|cut -d'=' -f1|sed 's|\t||' )")"
@@ -424,7 +428,7 @@ for binary in "${BINARY_LIST[@]}"
                         fi
                         if [[ -n "$LIBS" || "$ANY_EXECUTABLE" == 1 ]]
                             then
-                                if [[ "$LIBS_ONLY" != 1 && ! -n "$IS_SO" ]]
+                                if [ "$LIBS_ONLY" != 1 ] && ! is_so
                                     then
                                         if [[ "$with_sharun" == 1 && ! -x "${dst_dir}/sharun" ]]
                                             then
@@ -531,14 +535,15 @@ for binary in "${BINARY_LIST[@]}"
                                                         fi
                                                         if [[ "${LIBRARIES["$lib_dst_pth"]}" != 1 ]]
                                                             then
-                                                                if [[ ! -n "$IS_SO" && "$hard_links" == 1 && ! -L "${dst_dir}/${lib_dir}" ]]
+                                                                if ! is_so && [[ "$hard_links" == 1 && ! -L "${dst_dir}/${lib_dir}" ]]
                                                                     then
                                                                         (try_cd "$dst_dir"
                                                                         try_ln shared/$lib_dir $lib_dir)||exit 1
                                                                 fi
                                                                 repath_needed_libs "$lib_dst_pth"
                                                                 try_strip "$lib_dst_pth"
-                                                                if [[ ! "$lib_dst_pth" =~ "$INTERPRETER" ]]
+                                                                if [[ ! "$lib_dst_pth" =~ "$INTERPRETER" && \
+                                                                      ! "$lib_dst_pth" =~ ld-[0-9]\.[0-9]+\.so ]]
                                                                     then try_set_rpath "$lib_dst_pth"
                                                                 fi
                                                                 if [ "$WITH_HOOKS" == 1 ]
@@ -652,7 +657,7 @@ for binary in "${BINARY_LIST[@]}"
                                 done
                                 if [[ -n "$INTERPRETER" && "$PATCH_INTERPRETER" == 1 && "${LIBRARIES["${INTERPRETER}_patched"]}" != 1 ]]
                                     then
-                                        if [[ "$LIBS_ONLY" != 1 && ! -n "$IS_SO" ]]
+                                        if [ "$LIBS_ONLY" != 1 ] && ! is_so
                                             then
                                                 (try_cd "$bin_dir_pth"
                                                 if [ -f "../$lib_dir/$INTERPRETER" ]
