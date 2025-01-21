@@ -628,6 +628,27 @@ for binary in "${BINARY_LIST[@]}"
                                                                                         try_cp -T "$sys_vk_icd_dir" "$dst_vk_icd_dir"
                                                                                         sed -i 's|/usr/lib||g;s|/.*-linux-gnu||g;s|"/|"|g' "$dst_vk_icd_dir"/*
                                                                                 fi ;;
+                                                                            */libwebkit2gtk*.so*)
+                                                                                sys_webkit_lib_dir="$(find /usr/lib -type d -name 'webkit2gtk*')"
+                                                                                dst_webkit_lib_dir="$(dirname "$lib_dst_pth")/$(basename "$sys_webkit_lib_dir")"
+                                                                                if [[ -d "$sys_webkit_lib_dir" && ! -d "$dst_webkit_lib_dir" ]]
+                                                                                    then
+                                                                                        info_msg "$YELLOW[ HOOK ]:$GREEN hack webkit2gtk to be portable..."
+                                                                                        try_cp -T "$sys_webkit_lib_dir" "$dst_webkit_lib_dir"
+                                                                                        find "$dst_dir_pth/$lib_dir" -type f -name 'libwebkit2gtk*.so*' -exec sed -i 's|/usr|././|g' {} \;
+                                                                                        try_ln ./ "$dst_dir_pth/$lib_dir/$(uname -m)-linux-gnu"
+                                                                                        for bin_to_wrap in "$dst_webkit_lib_dir"/*; do
+                                                                                            if file "$bin_to_wrap" | grep -qi 'elf.*executable'
+                                                                                                then
+                                                                                                    mv "$bin_to_wrap" "$bin_dir_pth"
+                                                                                                    ln -sr "$dst_dir"/sharun "$dst_webkit_lib_dir"/"$(basename "$bin_to_wrap")"
+                                                                                            fi
+                                                                                        done
+                                                                                        if ! grep -q 'SHARUN_WORKING_DIR=${SHARUN_DIR}' "$dst_dir"/.env
+                                                                                            then
+                                                                                                echo 'SHARUN_WORKING_DIR=${SHARUN_DIR}' >> "$dst_dir"/.env
+                                                                                        fi
+                                                                                fi ;;
                                                                             */libncursesw.so*|*/libcursesw.so*|*/libcurses.so*)
                                                                                 sys_terminfo_dir='/usr/share/terminfo'
                                                                                 dst_terminfo_dir="$dst_dir/share/terminfo"
