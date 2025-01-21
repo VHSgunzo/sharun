@@ -636,7 +636,10 @@ for binary in "${BINARY_LIST[@]}"
                                                                                         info_msg "$YELLOW[ HOOK ]:$GREEN hack webkit2gtk to be portable..."
                                                                                         try_cp -T "$sys_webkit_lib_dir" "$dst_webkit_lib_dir"
                                                                                         find "$dst_dir_pth/$lib_dir" -type f -name 'libwebkit2gtk*.so*' -exec sed -i 's|/usr|././|g' {} \;
-                                                                                        try_ln ./ "$dst_dir_pth/$lib_dir/$(uname -m)-linux-gnu"
+                                                                                        if [ "$(basename "$(dirname "$lib_src_pth")")" != "$lib_dir" ]
+                                                                                            then
+                                                                                                try_ln ./ "$dst_dir_pth/$lib_dir/$(basename "$(dirname "$lib_src_pth")")"
+                                                                                        fi
                                                                                         for bin_to_wrap in "$dst_webkit_lib_dir"/*; do
                                                                                             if [ -f "$bin_to_wrap" ] && ! echo "$bin_to_wrap" | grep -q '.*\.so.*'
                                                                                                 then
