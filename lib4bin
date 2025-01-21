@@ -629,13 +629,13 @@ for binary in "${BINARY_LIST[@]}"
                                                                                         sed -i 's|/usr/lib||g;s|/.*-linux-gnu||g;s|"/|"|g' "$dst_vk_icd_dir"/*
                                                                                 fi ;;
                                                                             */libwebkit2gtk-*.so*)
-                                                                                sys_webkit_lib_dir="$(find /usr/lib -type d -name 'webkit2gtk*')"
-                                                                                dst_webkit_lib_dir="$(dirname "$lib_dst_pth")/$(basename "$sys_webkit_lib_dir")"
+                                                                                sys_webkit_lib_dir="$(dirname "$lib_src_pth")"/webkit2gtk*
+                                                                                dst_webkit_lib_dir="$(dirname "$lib_dst_pth")/$(basename $sys_webkit_lib_dir)"
                                                                                 info_msg "$YELLOW[ HOOK ]:$GREEN hack webkit2gtk to be portable..."
                                                                                 sed -i 's|/usr|././|g' "$lib_dst_pth"
-                                                                                if [[ -d "$sys_webkit_lib_dir" && ! -d "$dst_webkit_lib_dir" ]]
+                                                                                if [ -d $sys_webkit_lib_dir ] && [ ! -d "$dst_webkit_lib_dir" ]
                                                                                     then
-                                                                                        try_cp -T "$sys_webkit_lib_dir" "$dst_webkit_lib_dir"
+                                                                                        try_cp -T $sys_webkit_lib_dir "$dst_webkit_lib_dir"
                                                                                 fi
                                                                                 for bin_to_wrap in "$dst_webkit_lib_dir"/*
                                                                                     do
