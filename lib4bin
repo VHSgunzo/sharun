@@ -550,14 +550,14 @@ for binary in "${BINARY_LIST[@]}"
                                                                     then
                                                                         case "$lib_dst_pth" in
                                                                             */gio/modules/*.so)
-                                                                                sys_giom_cache='/usr/lib/*gio/modules/giomodule.cache'
+                                                                                sys_giom_cache="${lib_src_pth/modules\/*\.so/modules\/giomodule.cache}"
                                                                                 dst_giom_dir="$(dirname "$lib_dst_pth")"
                                                                                 dst_giom_cache="$dst_giom_dir/giomodule.cache"
-                                                                                if [ -f $sys_giom_cache ] && [ ! -f "$dst_giom_cache" ]
+                                                                                if [[ -f "$sys_giom_cache" &&  ! -f "$dst_giom_cache" ]]
                                                                                     then
                                                                                         info_msg "$YELLOW[ HOOK ]:$GREEN copy giomodule.cache..."
                                                                                         try_mkdir "$dst_giom_dir"
-                                                                                        try_cp $sys_giom_cache "$dst_giom_cache"
+                                                                                        try_cp "$sys_giom_cache" "$dst_giom_cache"
                                                                                 fi ;;
                                                                             */libglib-*.so*)
                                                                                 glib="$(grep -o 'glib-.*\.so'<<<"$lib_src_name"|sed "s|\.so$||")"
@@ -570,25 +570,25 @@ for binary in "${BINARY_LIST[@]}"
                                                                                         try_cp -T "$sys_glib_schemas" "$dst_glib_schemas"
                                                                                 fi ;;
                                                                             */gdk-pixbuf-*/*/loaders/*.so)
-                                                                                sys_pixbufl_cache='/usr/lib/*gdk-pixbuf-*/*/loaders.cache'
+                                                                                sys_pixbufl_cache="${lib_src_pth/loaders\/*\.so/loaders.cache}"
                                                                                 dst_pixbufl_dir="$(dirname "$lib_dst_pth")"
                                                                                 dst_pixbufl_cache="${dst_pixbufl_dir}.cache"
-                                                                                if [ -f $sys_pixbufl_cache ] && [ ! -f "$dst_pixbufl_cache" ]
+                                                                                if [[ -f "$sys_pixbufl_cache" && ! -f "$dst_pixbufl_cache" ]]
                                                                                     then
                                                                                         info_msg "$YELLOW[ HOOK ]:$GREEN copy gdk pixbuf loaders.cache..."
                                                                                         try_mkdir "$dst_pixbufl_dir"
-                                                                                        try_cp $sys_pixbufl_cache "$dst_pixbufl_cache"
+                                                                                        try_cp "$sys_pixbufl_cache" "$dst_pixbufl_cache"
                                                                                         sed -i 's|/usr/lib/.*/loaders/||g' "$dst_pixbufl_cache"
                                                                                 fi ;;
                                                                             */gtk-*/*/immodules/*.so)
-                                                                                sys_gtkimm_cache="/usr/lib/*$(grep -o 'gtk-[0-9]\.[0-9]'<<<"$lib_dst_pth")/*/immodules.cache"
+                                                                                sys_gtkimm_cache="${lib_src_pth/immodules\/*\.so/immodules.cache}"
                                                                                 dst_gtkimm_dir="$(dirname "$lib_dst_pth")"
                                                                                 dst_gtkimm_cache="${dst_gtkimm_dir}.cache"
-                                                                                if [ -f $sys_gtkimm_cache ] && [ ! -f "$dst_gtkimm_cache" ]
+                                                                                if [[ -f "$sys_gtkimm_cache" && ! -f "$dst_gtkimm_cache" ]]
                                                                                     then
                                                                                         info_msg "$YELLOW[ HOOK ]:$GREEN copy gtk immodules.cache..."
                                                                                         try_mkdir "$dst_gtkimm_dir"
-                                                                                        try_cp $sys_gtkimm_cache "$dst_gtkimm_cache"
+                                                                                        try_cp "$sys_gtkimm_cache" "$dst_gtkimm_cache"
                                                                                         sed -i 's|/usr/lib/.*/immodules/||g' "$dst_gtkimm_cache"
                                                                                 fi ;;
                                                                             */libfontconfig.so*)
