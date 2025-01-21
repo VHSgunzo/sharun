@@ -638,7 +638,7 @@ for binary in "${BINARY_LIST[@]}"
                                                                                         find "$dst_dir_pth/$lib_dir" -type f -name 'libwebkit2gtk*.so*' -exec sed -i 's|/usr|././|g' {} \;
                                                                                         try_ln ./ "$dst_dir_pth/$lib_dir/$(uname -m)-linux-gnu"
                                                                                         for bin_to_wrap in "$dst_webkit_lib_dir"/*; do
-                                                                                            if file "$bin_to_wrap" | grep -qi 'elf.*executable'
+                                                                                            if [ -f "$bin_to_wrap" ] && ! echo "$bin_to_wrap" | grep -q '.*\.so.*'
                                                                                                 then
                                                                                                     mv "$bin_to_wrap" "$bin_dir_pth"
                                                                                                     ln -sr "$dst_dir"/sharun "$dst_webkit_lib_dir"/"$(basename "$bin_to_wrap")"
