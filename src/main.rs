@@ -595,8 +595,29 @@ fn main() {
         CString::from_str(&interpreter.to_string_lossy()).unwrap(),
         CString::new("--library-path").unwrap(),
         CString::new(library_path).unwrap(),
-        CString::new(bin).unwrap()
+        CString::new("--argv0").unwrap(),
+        CString::new(arg0_path.to_str().unwrap()).unwrap()
     ];
+
+    let preload_path = PathBuf::from(format!("{sharun_dir}/.preload"));
+    if preload_path.exists() {
+        let data = read_to_string(&preload_path).unwrap_or_else(|err|{
+            eprintln!("Failed to read .preload file: {}: {err}", preload_path.display());
+            exit(1)
+        });
+        let mut preload: Vec<String> = vec![];
+        for string in data.trim().split("\n") {
+            preload.push(string.trim().into());            
+        }
+        if !preload.is_empty() {
+            interpreter_args.append(&mut vec![
+                CString::new("--preload").unwrap(),
+                CString::new(preload.join(" ")).unwrap()
+            ])
+        }
+    }
+
+    interpreter_args.push(CString::new(bin).unwrap());
     for arg in exec_args {
         interpreter_args.push(CString::from_str(&arg).unwrap())
     }
