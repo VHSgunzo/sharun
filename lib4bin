@@ -643,6 +643,7 @@ for binary in "${BINARY_LIST[@]}"
                                                                                         if [[ -f "$bin_to_wrap" && ! -L "$bin_to_wrap" ]] && \
                                                                                             ! grep -q '.*\.so.*'<<<"$bin_to_wrap"
                                                                                             then
+                                                                                                try_mkdir "$bin_dir_pth"
                                                                                                 mv "$bin_to_wrap" "$bin_dir_pth"
                                                                                                 ln -sr "$dst_dir/sharun" "$dst_webkit_lib_dir/$(basename "$bin_to_wrap")"
                                                                                         fi
@@ -651,7 +652,7 @@ for binary in "${BINARY_LIST[@]}"
                                                                                     then
                                                                                         try_ln . "$dst_dir_pth/$lib_dir/$(basename "$(dirname "$lib_src_pth")")"
                                                                                 fi
-                                                                                if ! grep -q 'SHARUN_WORKING_DIR=${SHARUN_DIR}' "$dst_dir/.env"
+                                                                                if ! grep -q 'SHARUN_WORKING_DIR=${SHARUN_DIR}' "$dst_dir/.env" 2>/dev/null
                                                                                     then
                                                                                         echo 'SHARUN_WORKING_DIR=${SHARUN_DIR}' >> "$dst_dir/.env"
                                                                                 fi ;;
