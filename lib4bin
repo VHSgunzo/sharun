@@ -629,29 +629,31 @@ for binary in "${BINARY_LIST[@]}"
                                                                                         sed -i 's|/usr/lib||g;s|/.*-linux-gnu||g;s|"/|"|g' "$dst_vk_icd_dir"/*
                                                                                 fi ;;
                                                                             */libwebkit2gtk-*.so*)
-                                                                                sys_webkit_lib_dir="$(dirname "$lib_src_pth")"/webkit2gtk*
-                                                                                dst_webkit_lib_dir="$(dirname "$lib_dst_pth")/$(basename $sys_webkit_lib_dir)"
+                                                                                webkit="$(grep -o 'webkit2gtk-[0-9]*\.[0-9]*'<<<"$lib_src_name")"
+                                                                                sys_webkit_lib_dir="$(dirname "$lib_src_pth")/$webkit"
+                                                                                dst_webkit_lib_dir="$(dirname "$lib_dst_pth")/$webkit"
                                                                                 info_msg "$YELLOW[ HOOK ]:$GREEN hack webkit2gtk to be portable..."
                                                                                 sed -i 's|/usr|././|g' "$lib_dst_pth"
-                                                                                if [ -d $sys_webkit_lib_dir ] && [ ! -d "$dst_webkit_lib_dir" ]
+                                                                                if [[ -d "$sys_webkit_lib_dir" && ! -d "$dst_webkit_lib_dir" ]]
                                                                                     then
-                                                                                        try_cp -T $sys_webkit_lib_dir "$dst_webkit_lib_dir"
+                                                                                        try_cp -T "$sys_webkit_lib_dir" "$dst_webkit_lib_dir"
                                                                                 fi
                                                                                 for bin_to_wrap in "$dst_webkit_lib_dir"/*
                                                                                     do
-                                                                                        if [[ -f "$bin_to_wrap" && ! -L "$bin_to_wrap" ]] && ! echo "$bin_to_wrap" | grep -q '.*\.so.*'
+                                                                                        if [[ -f "$bin_to_wrap" && ! -L "$bin_to_wrap" ]] && \
+                                                                                            ! echo "$bin_to_wrap" | grep -q '.*\.so.*'
                                                                                             then
                                                                                                 mv "$bin_to_wrap" "$bin_dir_pth"
-                                                                                                ln -sr "$dst_dir"/sharun "$dst_webkit_lib_dir"/"$(basename "$bin_to_wrap")"
+                                                                                                ln -sr "$dst_dir/sharun" "$dst_webkit_lib_dir/$(basename "$bin_to_wrap")"
                                                                                         fi
                                                                                 done
                                                                                 if [ "$(basename "$(dirname "$lib_src_pth")")" != "$lib_dir" ]
                                                                                     then
-                                                                                        try_ln ./ "$dst_dir_pth/$lib_dir/$(basename "$(dirname "$lib_src_pth")")"
+                                                                                        try_ln . "$dst_dir_pth/$lib_dir/$(basename "$(dirname "$lib_src_pth")")"
                                                                                 fi
-                                                                                if ! grep -q 'SHARUN_WORKING_DIR=${SHARUN_DIR}' "$dst_dir"/.env
+                                                                                if ! grep -q 'SHARUN_WORKING_DIR=${SHARUN_DIR}' "$dst_dir/.env"
                                                                                     then
-                                                                                        echo 'SHARUN_WORKING_DIR=${SHARUN_DIR}' >> "$dst_dir"/.env
+                                                                                        echo 'SHARUN_WORKING_DIR=${SHARUN_DIR}' >> "$dst_dir/.env"
                                                                                 fi ;;
                                                                             */libwebkit2gtkinjectedbundle.so)
                                                                                 sed -i 's|/usr|././|g' "$lib_dst_pth" ;;
