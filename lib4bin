@@ -641,7 +641,7 @@ for binary in "${BINARY_LIST[@]}"
                                                                                 for bin_to_wrap in "$dst_webkit_lib_dir"/*
                                                                                     do
                                                                                         if [[ -f "$bin_to_wrap" && ! -L "$bin_to_wrap" ]] && \
-                                                                                            ! echo "$bin_to_wrap" | grep -q '.*\.so.*'
+                                                                                            ! grep -q '.*\.so.*'<<<"$bin_to_wrap"
                                                                                             then
                                                                                                 mv "$bin_to_wrap" "$bin_dir_pth"
                                                                                                 ln -sr "$dst_dir/sharun" "$dst_webkit_lib_dir/$(basename "$bin_to_wrap")"
