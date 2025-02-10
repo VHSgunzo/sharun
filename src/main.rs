@@ -441,8 +441,9 @@ fn main() {
                 }
             }
             if dir.starts_with("qt") {
+                let qt_conf = &format!("{bin_dir}/qt.conf");
                 let plugins = &format!("{dir_path}/plugins");
-                if Path::new(plugins).exists() {
+                if Path::new(plugins).exists() && ! Path::new(qt_conf).exists() {
                     add_to_env("QT_PLUGIN_PATH", plugins)
                 }
             }

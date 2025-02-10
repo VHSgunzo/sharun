@@ -675,6 +675,16 @@ for binary in "${BINARY_LIST[@]}"
                                                                                         try_mkdir "$dst_tabset_dir"
                                                                                         try_cp -T "$sys_tabset_dir" "$dst_tabset_dir"
                                                                                 fi ;;
+                                                                            */qt*/plugins/*.so)
+                                                                                qt_conf="$sharun_bin_dir_pth/qt.conf"
+                                                                                if [ ! -f "$qt_conf" ]
+                                                                                    then
+                                                                                        info_msg "$YELLOW[ HOOK ]:$GREEN create qt.conf..."
+                                                                                        qt="$(grep -Eo 'qt([0-9])?'<<<"$lib_src_pth")"
+                                                                                        echo -e \
+                                                                                        "[Paths]\nPrefix = ../shared/${lib_dir}/${qt}\nPlugins = plugins\nImports = qml\nQml2Imports = qml" \
+                                                                                        > "$qt_conf"
+                                                                                fi ;;
                                                                         esac
                                                                 fi
                                                                 LIBRARIES["$lib_dst_pth"]=1
