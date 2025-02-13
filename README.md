@@ -53,22 +53,30 @@ cp ./target/$(uname -m)-unknown-linux-musl/release/sharun .
 [ Usage ]: lib4bin [OPTIONS] /path/executable -- [STRACE MODE EXEC ARGS]
 
 [ Options ]:
-  -a, --any-executable     Pack any executable (env: ANY_EXECUTABLE=1)
-  -d, --dst-dir '/path'    Destination directory (env: DST_DIR=/path)
-  -e, --strace-mode        Use strace for get libs (env: STRACE_MODE=1, STRACE_TIME=5)
-  -g, --gen-lib-path       Generate a lib.path file (env: GEN_LIB_PATH=1)
-  -h, --help               Show this message
-  -i, --patch-interpreter  Patch INTERPRETER to a relative path (env: PATCH_INTERPRETER=1)
-  -k, --with-hooks         Pack additional files required for libraries (env: WITH_HOOKS=1)
-  -l, --libs-only          Pack only libraries without executables (env: LIBS_ONLY=1)
-  -n, --not-one-dir        Separate directories for each executable (env: ONE_DIR=0)
-  -p, --hard-links         Pack sharun and create hard links (env: HARD_LINKS=1)
-  -q, --quiet-mode         Show only errors (env: QUIET_MODE=1)
-  -r, --patch-rpath        Patch RPATH to a relative path (env: PATCH_RPATH=1)
-  -s, --strip              Strip binaries and libraries (env: STRIP=1)
-  -v, --verbose            Verbose mode (env: VERBOSE=1)
-  -w, --with-sharun        Pack sharun from PATH or env or download 
-  (env: WITH_SHARUN=1, SHARUN=/path|URL, SHARUN_URL=URL, UPX_SHARUN=1)
+    -a, --any-executable     Pack any executable (env: ANY_EXECUTABLE=1)
+    -d, --dst-dir '/path'    Destination directory (env: DST_DIR=/path)
+    -e, --strace-mode        Use strace for get libs (env: STRACE_MODE=1)
+    -t, --strace-time 5      Specifies the time in seconds for strace mode (env: STRACE_TIME=5)
+    -g, --gen-lib-path       Generate a lib.path file (env: GEN_LIB_PATH=1)
+    -h, --help               Show this message
+    -i, --patch-interpreter  Patch INTERPRETER to a relative path (env: PATCH_INTERPRETER=1)
+    -k, --with-hooks         Pack additional files required for libraries (env: WITH_HOOKS=1)
+    -l, --libs-only          Pack only libraries without executables (env: LIBS_ONLY=1)
+    -n, --not-one-dir        Separate directories for each executable (env: ONE_DIR=0)
+    -p, --hard-links         Pack sharun and create hard links (env: HARD_LINKS=1)
+    -q, --quiet-mode         Show only errors (env: QUIET_MODE=1)
+    -r, --patch-rpath        Patch RPATH to a relative path (env: PATCH_RPATH=1)
+    -s, --strip              Strip binaries and libraries (env: STRIP=1)
+    -v, --verbose            Verbose mode (env: VERBOSE=1)
+    -w, --with-sharun        Pack sharun from PATH or env or download
+                                (env: WITH_SHARUN=1, SHARUN=/path|URL, SHARUN_URL=URL, UPX_SHARUN=1)
+    -o, --with-wrappe        Pack with wrappe from PATH or env or download
+                                (env: WITH_WRAPPE=1, WRAPPE=/path|URL, WRAPPE_URL=URL)
+    -c, --wrappe-clvl 0-22   Specify the compression level for wrappe (env: WRAPPE_CLVL=0-22) (default: 8)
+    -x, --wrappe-exec name   Specify the name of the wrappe packaged executable (env: WRAPPE_EXEC=name)
+    -m, --wrappe-args 'args' Specify the args for the wrappe packaged executable (env: WRAPPE_ARGS='args')
+    -u, --wrappe-no-cleanup  Disable cleanup the wrappe unpack directory after exit (env: WRAPPE_CLEANUP=0)
+                                It can also be set at runtime (env: STARTPE_CLEANUP=0)
 ```
 
 ## Examples:
@@ -94,7 +102,17 @@ cp ./target/$(uname -m)-unknown-linux-musl/release/sharun .
 * You can preload libraries using `.preload` file. Specify the necessary libraries in it from a new line. You can use the full paths to libraries or only their names if they are located in `shared/{lib,lib32}/`
 This can be useful, for example, to use [ld-preload-open](https://github.com/fritzw/ld-preload-open) library to reassign paths.
 
-* Also you can package the `sharun directory` with your applications into a single executable file using [wrappe](https://github.com/Systemcluster/wrappe)
+### Packing the `sharun directory` with your applications into a single executable with [wrappe](https://github.com/Systemcluster/wrappe):
+```
+# packing one executable file /bin/bash to the test/bash executable
+./sharun lib4bin --with-wrappe --gen-lib-path --dst-dir test /bin/bash
+
+# packing several executable files to the test/sharun multicall executable
+./sharun lib4bin --with-wrappe --gen-lib-path --dst-dir test /bin/bash /bin/env /bin/ls
+
+# packing several executable files with bash entrypoint to the test/bash executable
+./sharun lib4bin --with-wrappe --gen-lib-path --wrappe-exec bash --dst-dir test /bin/bash /bin/env /bin/ls
+```
 
 ## Screenshots:
 ![tree](img/tree.png)

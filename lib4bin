@@ -23,15 +23,19 @@ QUIET_MODE=${QUIET_MODE:=0}
 HARD_LINKS=${HARD_LINKS:=0}
 WITH_HOOKS=${WITH_HOOKS:=0}
 WITH_SHARUN=${WITH_SHARUN:=0}
+WITH_WRAPPE=${WITH_WRAPPE:=0}
+WRAPPE_CLVL=${WRAPPE_CLVL:=8}
 PATCH_RPATH=${PATCH_RPATH:=0}
 STRACE_MODE=${STRACE_MODE:=0}
 STRACE_TIME=${STRACE_TIME:=5}
 GEN_LIB_PATH=${GEN_LIB_PATH:=0}
 ANY_EXECUTABLE=${ANY_EXECUTABLE:=0}
+WRAPPE_CLEANUP=${WRAPPE_CLEANUP:=1}
 PATCH_INTERPRETER=${PATCH_INTERPRETER:=0}
 
 # BINARY_LIST=('/path/executable' '/path/executable')
 GIT_SHARUN_RELEASES='https://github.com/VHSgunzo/sharun/releases'
+GIT_WRAPPE_RELEASES='https://github.com/VHSgunzo/wrappe/releases'
 
 usage() {
     echo -e "[ Usage ]: lib4bin [OPTIONS] /path/executable -- [STRACE MODE EXEC ARGS]
@@ -39,7 +43,8 @@ usage() {
 [ Options ]:
     -a, --any-executable     Pack any executable (env: ANY_EXECUTABLE=1)
     -d, --dst-dir '/path'    Destination directory (env: DST_DIR=/path)
-    -e, --strace-mode        Use strace for get libs (env: STRACE_MODE=1, STRACE_TIME=5)
+    -e, --strace-mode        Use strace for get libs (env: STRACE_MODE=1)
+    -t, --strace-time 5      Specifies the time in seconds for strace mode (env: STRACE_TIME=5)
     -g, --gen-lib-path       Generate a lib.path file (env: GEN_LIB_PATH=1)
     -h, --help               Show this message
     -i, --patch-interpreter  Patch INTERPRETER to a relative path (env: PATCH_INTERPRETER=1)
@@ -52,24 +57,31 @@ usage() {
     -s, --strip              Strip binaries and libraries (env: STRIP=1)
     -v, --verbose            Verbose mode (env: VERBOSE=1)
     -w, --with-sharun        Pack sharun from PATH or env or download
-    (env: WITH_SHARUN=1, SHARUN=/path|URL, SHARUN_URL=URL, UPX_SHARUN=1)"
+                                (env: WITH_SHARUN=1, SHARUN=/path|URL, SHARUN_URL=URL, UPX_SHARUN=1)
+    -o, --with-wrappe        Pack with wrappe from PATH or env or download
+                                (env: WITH_WRAPPE=1, WRAPPE=/path|URL, WRAPPE_URL=URL)
+    -c, --wrappe-clvl 0-22   Specify the compression level for wrappe (env: WRAPPE_CLVL=0-22) (default: 8)
+    -x, --wrappe-exec name   Specify the name of the wrappe packaged executable (env: WRAPPE_EXEC=name)
+    -m, --wrappe-args 'args' Specify the args for the wrappe packaged executable (env: WRAPPE_ARGS='args')
+    -u, --wrappe-no-cleanup  Disable cleanup the wrappe unpack directory after exit (env: WRAPPE_CLEANUP=0)
+                                It can also be set at runtime (env: STARTPE_CLEANUP=0)"
     exit 1
 }
 
 error_msg() {
-    echo -e "${RED}[ ERROR ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
+    echo -e "${RED}[ ERROR ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR" 1>&2
     return 1
 }
 
 info_msg() {
     if [ "$QUIET_MODE" != 1 ]
-        then echo -e "${GREEN}[ INFO ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
+        then echo -e "${GREEN}[ INFO ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR" 1>&2
     fi
 }
 
 skip_msg() {
     if [ "$QUIET_MODE" != 1 ]
-        then echo -e "${YELLOW}[ SKIPPED ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR"
+        then echo -e "${YELLOW}[ SKIPPED ][$(date +"%Y.%m.%d %T")]: $@ $RESETCOLOR" 1>&2
     fi
 }
 
@@ -230,6 +242,11 @@ get_sharun_git_url() {
     /dev/stdout 2>/dev/null|grep -m1 "Release v.*"|awk '{print$2}')/sharun-$(uname -m)$([ "$UPX_SHARUN" != 1 ]||echo -upx)"
 }
 
+get_wrappe_git_url() {
+    echo "${GIT_WRAPPE_RELEASES}/download/$(NO_ARIA2C=1 try_dl "${GIT_WRAPPE_RELEASES}/latest" \
+    /dev/stdout 2>/dev/null|grep -m1 "Release v.*"|awk '{print$2}')/wrappe-$(uname -m)"
+}
+
 is_url() {
     [ ! -n "$1" ] && \
         return 1
@@ -303,6 +320,17 @@ try_dl() {
     return $?
 }
 
+parse_arg_options() {
+    [ "$1" == 'dash' ] && shift && \
+    local _ALLOW_DASH=1||unset _ALLOW_DASH
+    if [ -n "$3" ] && [[ "$_ALLOW_DASH" == 1 || "$3" != -* ]]
+        then eval "${1}='$3'"
+        else
+            error_msg "${YELLOW}Option ${BLUE}$2 ${YELLOW}requires a non-empty argument!\n"
+            usage
+    fi
+}
+
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         -h|--help) usage ;;
@@ -315,22 +343,31 @@ while [[ "$#" -gt 0 ]]; do
         -p|--hard-links) HARD_LINKS=1; shift ;;
         -e|--strace-mode) STRACE_MODE=1; shift ;;
         -w|--with-sharun) WITH_SHARUN=1; shift ;;
+        -o|--with-wrappe) WITH_WRAPPE=1; shift ;;
         -r|--patch-rpath) PATCH_RPATH=1; shift ;;
         -g|--gen-lib-path) GEN_LIB_PATH=1; shift ;;
         -a|--any-executable) ANY_EXECUTABLE=1; shift ;;
+        -u|--wrappe-no-cleanup) WRAPPE_CLEANUP=0; shift ;;
         -i|--patch-interpreter) PATCH_INTERPRETER=1; shift ;;
-        -d|--dst-dir)
-            if [[ -n "$2" && "$2" != -* ]]
-                then DST_DIR="$2"; shift 2
-                else
-                    error_msg "${YELLOW}Option ${BLUE}$1 ${YELLOW}requires a non-empty argument!\n"
-                    usage
-            fi
-            ;;
+        -d|--dst-dir) parse_arg_options DST_DIR "$1" "$2"; shift 2 ;;
+        -t|--strace-time) parse_arg_options STRACE_TIME "$1" "$2"; shift 2 ;;
+        -x|--wrappe-exec) parse_arg_options WRAPPE_EXEC "$1" "$2"; shift 2 ;;
+        -c|--wrappe-clvl) parse_arg_options WRAPPE_CLVL "$1" "$2"; shift 2 ;;
+        -m|--wrappe-args) parse_arg_options dash WRAPPE_ARGS "$1" "$2"; shift 2 ;;
          -*) error_msg "Unknown parameter: ${BLUE}$1\n"; usage ;;
         *) break ;;
     esac
 done
+
+[[ "$STRACE_TIME" =~ ^[0-9]+$ ]]||\
+    STRACE_TIME=5
+
+[[ -n "$WRAPPE_EXEC" || -n "$WRAPPE_ARGS" ]] && \
+    WITH_WRAPPE=1
+(( WRAPPE_CLVL >= 0 && WRAPPE_CLVL <= 22 ))||\
+    WRAPPE_CLVL=8
+[ "$WITH_WRAPPE" == 1 ] && \
+    WITH_SHARUN=1
 
 if [ "$2" == '--' ]
     then
@@ -385,10 +422,14 @@ for binary in "${BINARY_LIST[@]}"
                 binary_name="$(basename "$binary")"
                 if [ "$ONE_DIR" == 1 ]
                     then
+                        [ "$WITH_WRAPPE" == 1 ] && \
+                        dst_dir="$DST_DIR/wrappe-$$"||\
                         dst_dir="$DST_DIR"
-                        dst_dir_pth="${DST_DIR}/shared"
-                        sharun_bin_dir_pth="${DST_DIR}/bin"
+                        dst_dir_pth="${dst_dir}/shared"
+                        sharun_bin_dir_pth="${dst_dir}/bin"
                     else
+                        [ "$WITH_WRAPPE" == 1 ] && \
+                        dst_dir="${DST_DIR}/${binary_name}/wrappe-$$"||\
                         dst_dir="${DST_DIR}/${binary_name}"
                         dst_dir_pth="${dst_dir}/shared"
                         sharun_bin_dir_pth="${dst_dir}/bin"
@@ -442,7 +483,7 @@ for binary in "${BINARY_LIST[@]}"
                                                                 SHARUN_URL="$SHARUN"
                                                                 SHARUN="$TMP_SHARUN"
                                                         fi
-                                                        SHARUN_URL="${SHARUN_URL:="$(get_sharun_git_url)"}"
+                                                        SHARUN_URL="${SHARUN_URL:=$(get_sharun_git_url)}"
                                                         info_msg "Downloading sharun -> '$SHARUN'..."
                                                         info_msg "$SHARUN_URL"
                                                         if try_dl "$SHARUN_URL" "$SHARUN"
@@ -535,7 +576,7 @@ for binary in "${BINARY_LIST[@]}"
                                                         fi
                                                         if [[ "${LIBRARIES["$lib_dst_pth"]}" != 1 ]]
                                                             then
-                                                                if ! is_so && [[ "$hard_links" == 1 && ! -L "${dst_dir}/${lib_dir}" ]]
+                                                                if ! is_so && [ ! -L "${dst_dir}/${lib_dir}" ]
                                                                     then
                                                                         (try_cd "$dst_dir"
                                                                         try_ln shared/$lib_dir $lib_dir)||exit 1
@@ -724,10 +765,39 @@ for binary in "${BINARY_LIST[@]}"
 done
 unset BINARIES LIBRARIES
 
-if [ "$GEN_LIB_PATH" == 1 ]
+if [ "$WITH_WRAPPE" == 1 ]
     then
-        for dst_dir in "${!DST_DIRS[@]}"
-            do
+        TMP_WRAPPE="/tmp/wrappe-$(uname -m)"
+        WRAPPE="${WRAPPE:="$(readlink -f "$(which_exe wrappe)")"}"
+        WRAPPE="${WRAPPE:="$TMP_WRAPPE"}"
+        if [ ! -x "$WRAPPE" ]
+            then
+                if [[ "${WRAPPE,,}" =~ ^http ]]
+                    then
+                        WRAPPE_URL="$WRAPPE"
+                        WRAPPE="$TMP_WRAPPE"
+                fi
+                WRAPPE_URL="${WRAPPE_URL:=$(get_wrappe_git_url)}"
+                info_msg "Downloading wrappe -> '$WRAPPE'..."
+                info_msg "$WRAPPE_URL"
+                if try_dl "$WRAPPE_URL" "$WRAPPE"
+                    then chmod $varg +x "$WRAPPE"
+                    else
+                        error_msg "Failed to download wrappe!"
+                        exit 1
+                fi
+        fi
+        if [ ! -x "$WRAPPE" ]
+            then
+                error_msg "wrappe not found!"
+                exit 1
+        fi
+fi
+
+for dst_dir in "${!DST_DIRS[@]}"
+    do
+        if [ "$GEN_LIB_PATH" == 1 ]
+            then
                 (for lib_dir in lib lib32
                     do
                         lib_dir="${dst_dir}/${lib_dir}"
@@ -738,5 +808,30 @@ if [ "$GEN_LIB_PATH" == 1 ]
                                 sort -u|sed "s|${lib_dir}|+|g" > "${lib_dir}/lib.path"||exit 1
                         fi
                 done)||exit 1
-        done
-fi
+        fi
+        src_dir="${dst_dir%/shared}"
+        if [[ "$WITH_WRAPPE" == 1 && -x "$src_dir/sharun" ]]
+            then
+                src_bins=($(find "$src_dir/bin/" -not -type d -executable -printf "%f\n"))
+                if [ -n "$src_bins" ]
+                    then
+                        if [ "${#src_bins[@]}" == 1 ]
+                            then wrappe_exec="$src_dir/bin/$src_bins"
+                            else
+                                if [ -n "$WRAPPE_EXEC" ]
+                                    then wrappe_exec="$src_dir/bin/$WRAPPE_EXEC"
+                                    else wrappe_exec="$src_dir/sharun"
+                                fi
+                        fi
+                        wexec_name="${wrappe_exec##*/}"
+                        [ -L "$wrappe_exec" ] && wrappe_args="$wexec_name $WRAPPE_ARGS"
+                        info_msg "$YELLOW[ PACKING WITH WRAPPE ]..."
+                        if "$WRAPPE" --unpack-target temp --unpack-directory .wrappe \
+                            $([ "$WRAPPE_CLEANUP" == 0 ]||echo '--cleanup') \
+                            --show-information none --compression "$WRAPPE_CLVL" "$src_dir" \
+                            "$wrappe_exec" "$(dirname "$src_dir")/$wexec_name" -- $wrappe_args
+                            then rm -rf "$src_dir"
+                        fi
+                fi
+        fi
+done
