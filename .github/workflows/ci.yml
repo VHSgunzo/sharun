@@ -26,7 +26,7 @@ jobs:
 
       - name: Install deps
         run: |
-          sudo bash -c 'apt update && apt install upx binutils -y'
+          sudo bash -c 'apt update && apt install upx binutils qemu-user-static -y'
           rustup component add rust-src --toolchain nightly
           cargo install cross
 
