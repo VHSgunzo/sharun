@@ -51,6 +51,14 @@ jobs:
         run: |
           ls sharun-*|xargs -I {} upx -9 --best {} -o {}-upx
 
+      - name: AIO sharun x86_64
+        run: |
+          docker run --rm -v "${{ github.workspace }}:/root" -w /root --platform=linux/amd64 alpine:latest /root/.github/create_aio_sharun.sh
+
+      - name: AIO sharun aarch64
+        run: |
+          docker run --rm -v "${{ github.workspace }}:/root" -w /root --platform=linux/arm64 alpine:latest /root/.github/create_aio_sharun.sh
+
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')

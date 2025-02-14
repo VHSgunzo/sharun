@@ -27,6 +27,7 @@ cp ./target/$(uname -m)-unknown-linux-musl/release/sharun .
 ./sharun lib4bin --help
 ```
 * Or take an already precompiled binary file from the [releases](https://github.com/VHSgunzo/sharun/releases)
+* You can also use all on one sharun (`sharun-$ARCH-aio`) version which contains all the necessary dependencies for `lib4bin`. See [create_aio_sharun.sh](https://github.com/VHSgunzo/sharun/blob/main/.github/create_aio_sharun.sh)
 
 ## Usage sharun:
 ```
@@ -53,7 +54,6 @@ cp ./target/$(uname -m)-unknown-linux-musl/release/sharun .
 [ Usage ]: lib4bin [OPTIONS] /path/executable -- [STRACE MODE EXEC ARGS]
 
 [ Options ]:
-    -a, --any-executable     Pack any executable (env: ANY_EXECUTABLE=1)
     -d, --dst-dir '/path'    Destination directory (env: DST_DIR=/path)
     -e, --strace-mode        Use strace for get libs (env: STRACE_MODE=1)
     -t, --strace-time 5      Specifies the time in seconds for strace mode (env: STRACE_TIME=5)
@@ -148,6 +148,7 @@ This can be useful, for example, to use [ld-preload-open](https://github.com/fri
 |`GSETTINGS_SCHEMA_DIR` | `${SHARUN_DIR}/share/glib-2.0/schemas`|
 |`GIMP2_DATADIR` | `${SHARUN_DIR}/share/gimp/2.0`|
 |`TERMINFO` | `${SHARUN_DIR}/share/terminfo`|
+|`MAGIC` | `${SHARUN_DIR}/share/file/misc/magic.mgc`|
 |||
 |---|---|
 |`FONTCONFIG_FILE` | `${SHARUN_DIR}/etc/fonts/fonts.conf`|

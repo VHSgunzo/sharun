@@ -256,6 +256,7 @@ fn main() {
                     decoder.read_to_end(&mut lib4bin).unwrap();
                     drop(decoder);
                     exec_args.remove(0);
+                    add_to_env("PATH", bin_dir);
                     let cmd = Command::new("bash")
                         .env("SHARUN", sharun)
                         .envs(env::vars())
@@ -552,6 +553,12 @@ fn main() {
                         }
                         "terminfo" =>  {
                             env::set_var("TERMINFO",entry_path)
+                        }
+                        "file" =>  {
+                            let magic_file = &entry_path.join("misc/magic.mgc");
+                            if magic_file.exists() {
+                                env::set_var("MAGIC", magic_file)
+                            }
                         }
                         _ => {}
                     }
