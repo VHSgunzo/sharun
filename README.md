@@ -27,7 +27,7 @@ cp ./target/$(uname -m)-unknown-linux-musl/release/sharun .
 ./sharun lib4bin --help
 ```
 * Or take an already precompiled binary file from the [releases](https://github.com/VHSgunzo/sharun/releases)
-* You can also use all on one sharun (`sharun-$ARCH-aio`) version which contains all the necessary dependencies for `lib4bin`. See [create_aio_sharun.sh](https://github.com/VHSgunzo/sharun/blob/main/.github/create_aio_sharun.sh)
+* You can also use all in one sharun (`sharun-$ARCH-aio`) version which contains all the necessary dependencies for `lib4bin`. See [create_aio_sharun.sh](https://github.com/VHSgunzo/sharun/blob/main/.github/create_aio_sharun.sh)
 
 ## Usage sharun:
 ```
