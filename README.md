@@ -54,7 +54,7 @@ cp ./target/$(uname -m)-unknown-linux-musl/release/sharun .
 [ Usage ]: lib4bin [OPTIONS] /path/executable -- [STRACE MODE EXEC ARGS]
 
 [ Options ]:
-    -d, --dst-dir '/path'    Destination directory (env: DST_DIR=/path)
+    -d, --dst-dir '/path'    Destination directory (env: DST_DIR='/path')
     -e, --strace-mode        Use strace for get libs (env: STRACE_MODE=1)
     -t, --strace-time 5      Specifies the time in seconds for strace mode (env: STRACE_TIME=5)
     -g, --gen-lib-path       Generate a lib.path file (env: GEN_LIB_PATH=1)
@@ -75,6 +75,7 @@ cp ./target/$(uname -m)-unknown-linux-musl/release/sharun .
     -c, --wrappe-clvl 0-22   Specify the compression level for wrappe (env: WRAPPE_CLVL=0-22) (default: 8)
     -x, --wrappe-exec name   Specify the name of the wrappe packaged executable (env: WRAPPE_EXEC=name)
     -m, --wrappe-args 'args' Specify the args for the wrappe packaged executable (env: WRAPPE_ARGS='args')
+    -z, --wrappe-dir '/path' Specify path to the sharun dir for packing with wrappe (env: WRAPPE_DIR='/path')
     -u, --wrappe-no-cleanup  Disable cleanup the wrappe unpack directory after exit (env: WRAPPE_CLEANUP=0)
                                 It can also be set at runtime (env: STARTPE_CLEANUP=0)
 ```
@@ -105,13 +106,13 @@ This can be useful, for example, to use [ld-preload-open](https://github.com/fri
 ### Packing the `sharun directory` with your applications into a single executable with [wrappe](https://github.com/Systemcluster/wrappe):
 ```
 # packing one executable file /bin/bash to the test/bash executable
-./sharun lib4bin --with-wrappe --gen-lib-path --dst-dir test /bin/bash
+./sharun lib4bin --with-wrappe --dst-dir test /bin/bash
 
 # packing several executable files to the test/sharun multicall executable
-./sharun lib4bin --with-wrappe --gen-lib-path --dst-dir test /bin/bash /bin/env /bin/ls
+./sharun lib4bin --with-wrappe --dst-dir test /bin/bash /bin/env /bin/ls
 
 # packing several executable files with bash entrypoint to the test/bash executable
-./sharun lib4bin --with-wrappe --gen-lib-path --wrappe-exec bash --dst-dir test /bin/bash /bin/env /bin/ls
+./sharun lib4bin --with-wrappe --wrappe-exec bash --dst-dir test /bin/bash /bin/env /bin/ls
 ```
 
 ## Screenshots:
