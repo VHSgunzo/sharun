@@ -166,6 +166,8 @@ This can be useful, for example, to use [ld-preload-open](https://github.com/fri
 * [GIMP-AppImage](https://github.com/Samueru-sama/GIMP-AppImage)
 * [RMG](https://github.com/Rosalie241/RMG)
 * [PrusaSlicer](https://github.com/probonopd/PrusaSlicer)
+* [goverlay](https://github.com/benjamimgois/goverlay)
+* [ghostty-appimage](https://github.com/psadi/ghostty-appimage)
 
 ## References
 * [userland-execve](https://crates.io/crates/userland-execve)
