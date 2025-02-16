@@ -168,6 +168,7 @@ This can be useful, for example, to use [ld-preload-open](https://github.com/fri
 * [PrusaSlicer](https://github.com/probonopd/PrusaSlicer)
 * [goverlay](https://github.com/benjamimgois/goverlay)
 * [ghostty-appimage](https://github.com/psadi/ghostty-appimage)
+* [WayVR Dashboard](https://github.com/olekolek1000/wayvr-dashboard)
 
 ## References
 * [userland-execve](https://crates.io/crates/userland-execve)
