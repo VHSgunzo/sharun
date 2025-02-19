@@ -128,7 +128,7 @@ This can be useful, for example, to use [ld-preload-open](https://github.com/fri
 ./sharun lib4bin --with-python --wrappe-exec python --strip --dst-dir test
 
 # packing python 3.14 and awscli package with aws entrypoint to the test/aws executable in strace mode:
-./sharun lib4bin --wrappe-exec aws --strip --with-hooks --python-ver 3.14 --python-pkg awscli --dst-dir test sharun -- aws s3 ls --no--stripign-request s3://globalnightlight
+./sharun lib4bin --wrappe-exec aws --strip --with-hooks --python-ver 3.14 --python-pkg awscli --dst-dir test sharun -- aws s3 ls --no-sign-request s3://globalnightlight
 
 # packing python 3.13 and pygame package with examples.aliens entrypoint to the test/python executable in strace mode:
 ./sharun lib4bin --wrappe-exec python -m '-m pygame.examples.aliens' --strip --with-hooks --python-ver 3.13 --python-pkg pygame --dst-dir test sharun -- python -m pygame.examples.aliens
