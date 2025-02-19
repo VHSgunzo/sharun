@@ -242,7 +242,7 @@ try_cd() {
 
 find_exe() {
     [ -n "$1" ] && local path="$1" && shift
-    find "$path" -maxdepth 1 -not -type d -executable "$@"
+    find "$path" -maxdepth 1 -not -type d -executable "$@"|sort
 }
 
 find_so() { find "$@" -name '*.so' -o -name '*.so.*' 2>/dev/null ; }
