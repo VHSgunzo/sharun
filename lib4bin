@@ -506,6 +506,9 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                 rm -rf "$PYTMP_DIR"
                 OLD_IFS="$IFS"
                 IFS=$'\n'
+                for script in $(grep -m1 "^'''exec.*python" -lr "$dst_dir/bin")
+                    do sed -i '1s|.*|#!/usr/bin/env python|;2,3d' "$script"
+                done
                 BINARY_LIST+=(
                     $(find_exe "$dst_dir/bin/")
                     #$(find_so "$dst_dir")
