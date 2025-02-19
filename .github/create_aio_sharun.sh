@@ -23,4 +23,4 @@ SHARUN="$PWD/sharun-$ARCH" \
 "$PWD/lib4bin" -k -o -c 22 -s -g $BINS_PATHS "$WRAPPE"
 
 mv sharun "sharun-$ARCH-aio"
-rm -f "$WRAPPE"
+rm -f wrappe*

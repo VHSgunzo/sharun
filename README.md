@@ -56,7 +56,7 @@ cp ./target/$(uname -m)-unknown-linux-musl/release/sharun .
 [ Options ]:
     -d, --dst-dir '/path'    Destination directory (env: DST_DIR='/path')
     -e, --strace-mode        Use strace for get libs (env: STRACE_MODE=1)
-    -t, --strace-time 5      Specifies the time in seconds for strace mode (env: STRACE_TIME=5)
+    -t, --strace-time 5      Specify the time in seconds for strace mode (env: STRACE_TIME=5)
     -g, --gen-lib-path       Generate a lib.path file (env: GEN_LIB_PATH=1)
     -h, --help               Show this message
     -i, --patch-interpreter  Patch INTERPRETER to a relative path (env: PATCH_INTERPRETER=1)
@@ -78,21 +78,25 @@ cp ./target/$(uname -m)-unknown-linux-musl/release/sharun .
     -z, --wrappe-dir '/path' Specify path to the sharun dir for packing with wrappe (env: WRAPPE_DIR='/path')
     -u, --wrappe-no-cleanup  Disable cleanup the wrappe unpack directory after exit (env: WRAPPE_CLEANUP=0)
                                 It can also be set at runtime (env: STARTPE_CLEANUP=0)
+    -y, --with-python        Pack python using uv from PATH or env or download
+                                (env: WITH_PYTHON=1, UV=/path|URL, UV_URL=URL)
+    -pp, --python-pkg 'pkg'  Specify the python package for packing (env: PYTHON_PKG='pkg')
+    -pv, --python-ver 3.12   Specify the python version for packing (env: PYTHON_VER=3.12)
 ```
 
 ## Examples:
 ```
-# run lib4bin with the paths to the binary files that you want to make portable
+# run lib4bin with the paths to the binary files that you want to make portable:
 ./sharun lib4bin --with-sharun --dst-dir test /bin/bash
 
-# or for correct /proc/self/exe you can use --hard-links flag
+# or for correct /proc/self/exe you can use --hard-links flag:
 ./sharun lib4bin --hard-links --dst-dir test /bin/bash
 # this will create hard links from 'test/sharun' in the 'test/bin' directory
 
-# now you can move 'test' dir to other linux system and run binaries from the 'bin' dir
+# now you can move 'test' dir to other linux system and run binaries from the 'bin' dir:
 ./test/bin/bash --version
 
-# or specify them as an argument to 'sharun'
+# or specify them as an argument to 'sharun':
 ./test/sharun bash --version
 ```
 
@@ -105,14 +109,29 @@ This can be useful, for example, to use [ld-preload-open](https://github.com/fri
 
 ### Packing the `sharun directory` with your applications into a single executable with [wrappe](https://github.com/Systemcluster/wrappe):
 ```
-# packing one executable file /bin/bash to the test/bash executable
+# packing one executable file /bin/bash to the test/bash executable:
 ./sharun lib4bin --with-wrappe --dst-dir test /bin/bash
 
-# packing several executable files to the test/sharun multicall executable
+# packing several executable files to the test/sharun multicall executable:
 ./sharun lib4bin --with-wrappe --dst-dir test /bin/bash /bin/env /bin/ls
 
-# packing several executable files with bash entrypoint to the test/bash executable
-./sharun lib4bin --with-wrappe --wrappe-exec bash --dst-dir test /bin/bash /bin/env /bin/ls
+# packing several executable files with bash entrypoint to the test/bash executable:
+./sharun lib4bin --wrappe-exec bash --dst-dir test /bin/bash /bin/env /bin/ls
+```
+
+### Packing the `sharun directory` with your python application into a single executable with [wrappe](https://github.com/Systemcluster/wrappe):
+```
+# packing python to the test/sharun multicall executable:
+./sharun lib4bin --with-python --with-wrappe --strip --dst-dir test
+
+# packing python with python entrypoint to the test/python executable:
+./sharun lib4bin --with-python --wrappe-exec python --strip --dst-dir test
+
+# packing python 3.14 and awscli package with aws entrypoint to the test/aws executable in strace mode:
+./sharun lib4bin --wrappe-exec aws --strip --with-hooks --python-ver 3.14 --python-pkg awscli --dst-dir test sharun -- aws s3 ls --no--stripign-request s3://globalnightlight
+
+# packing python 3.13 and pygame package with examples.aliens entrypoint to the test/python executable in strace mode:
+./sharun lib4bin --wrappe-exec python -m '-m pygame.examples.aliens' --strip --with-hooks --python-ver 3.13 --python-pkg pygame --dst-dir test sharun -- python -m pygame.examples.aliens
 ```
 
 ## Screenshots:

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+shopt -s extglob
 
 # deps: apt update && apt install bash file binutils patchelf findutils grep sed coreutils strace -y
 # deps: apk add bash file binutils patchelf findutils grep sed coreutils strace
@@ -14,7 +15,9 @@ RESETCOLOR='\033[1;00m'
 
 ONE_DIR=${ONE_DIR:=1}
 DST_DIR="${DST_DIR:=.}"
+TMPDIR="${TMPDIR:=/tmp}"
 CREATE_LINKS=${CREATE_LINKS:=1}
+PYINSTALL_DIR="${PYINSTALL_DIR:=$TMPDIR/pyinstall}"
 
 STRIP=${STRIP:=0}
 VERBOSE=${VERBOSE:=0}
@@ -33,9 +36,9 @@ ANY_EXECUTABLE=${ANY_EXECUTABLE:=0}
 WRAPPE_CLEANUP=${WRAPPE_CLEANUP:=1}
 PATCH_INTERPRETER=${PATCH_INTERPRETER:=0}
 
-# BINARY_LIST=('/path/executable' '/path/executable')
 GIT_SHARUN_RELEASES='https://github.com/VHSgunzo/sharun/releases'
 GIT_WRAPPE_RELEASES='https://github.com/VHSgunzo/wrappe/releases'
+GIT_UV_RELEASES='https://github.com/astral-sh/uv/releases'
 
 usage() {
     echo -e "[ Usage ]: lib4bin [OPTIONS] /path/executable -- [STRACE MODE EXEC ARGS]
@@ -43,7 +46,7 @@ usage() {
 [ Options ]:
     -d, --dst-dir '/path'    Destination directory (env: DST_DIR='/path')
     -e, --strace-mode        Use strace for get libs (env: STRACE_MODE=1)
-    -t, --strace-time 5      Specifies the time in seconds for strace mode (env: STRACE_TIME=5)
+    -t, --strace-time 5      Specify the time in seconds for strace mode (env: STRACE_TIME=5)
     -g, --gen-lib-path       Generate a lib.path file (env: GEN_LIB_PATH=1)
     -h, --help               Show this message
     -i, --patch-interpreter  Patch INTERPRETER to a relative path (env: PATCH_INTERPRETER=1)
@@ -64,7 +67,11 @@ usage() {
     -m, --wrappe-args 'args' Specify the args for the wrappe packaged executable (env: WRAPPE_ARGS='args')
     -z, --wrappe-dir '/path' Specify path to the sharun dir for packing with wrappe (env: WRAPPE_DIR='/path')
     -u, --wrappe-no-cleanup  Disable cleanup the wrappe unpack directory after exit (env: WRAPPE_CLEANUP=0)
-                                It can also be set at runtime (env: STARTPE_CLEANUP=0)"
+                                It can also be set at runtime (env: STARTPE_CLEANUP=0)
+    -y, --with-python        Pack python using uv from PATH or env or download
+                                (env: WITH_PYTHON=1, UV=/path|URL, UV_URL=URL)
+    -pp, --python-pkg 'pkg'  Specify the python package for packing (env: PYTHON_PKG='pkg')
+    -pv, --python-ver 3.12   Specify the python version for packing (env: PYTHON_VER=3.12)"
     exit 1
 }
 
@@ -145,12 +152,15 @@ ldd_libs() {
 
 get_libs() {
     unset libs libs4libs
-    if [ "$STRACE_MODE" == 1 ] && ! is_so
+    if [ "$STRACE_MODE" == 1 ] && ! is_so && \
+    ([[ ! -n "$STRACE_EXE" || "$STRACE_EXE" == "$1" ]]||\
+    [[ "$STRACE_EXE" == 'sharun' && "$1" == "$dst_dir/sharun" && "$binary_name" == 'sharun' ]])
         then
-            local libs_file="/tmp/libs.$$"
+            local libs_file="${TMPDIR}/libs.$$"
             [[ "$(strace --help)" =~ always-show-pid ]] && \
             STRACE_ARGS='--always-show-pid'||unset STRACE_ARGS
-            strace -f -e trace=openat,open $STRACE_ARGS -o "$libs_file" "$1" "${STRACE_CMD_ARGS[@]}" &>/dev/null &
+            info_msg "$YELLOW[ STRACE ]: $BLUE[$1 ${STRACE_CMD_ARGS[@]}] ${GREEN}..."
+            strace -f -e trace=openat,open $STRACE_ARGS -o "$libs_file" "$1" "${STRACE_CMD_ARGS[@]}" 1>&2 &
             sleep $STRACE_TIME
             local pids="$(cut -d ' ' -f1<"$libs_file"|sort -u)"
             kill $pids 2>/dev/null
@@ -218,10 +228,21 @@ try_cp() {
     cp $varg -rf "$@"||exit 1
 }
 
+try_mv() {
+    [ "$VERBOSE" == 1 ] && \
+        echo -n "mv: "
+    mv $varg -f "$@"||exit 1
+}
+
 try_cd() {
     [ "$VERBOSE" == 1 ] && \
         echo "cd: '$1'"
     cd "$1"||exit 1
+}
+
+find_exe() {
+    [ -n "$1" ] && local path="$1" && shift
+    find "$path" -maxdepth 1 -not -type d -executable "$@"
 }
 
 find_so() { find "$@" -name '*.so' -o -name '*.so.*' 2>/dev/null ; }
@@ -239,14 +260,9 @@ check_url_stat_code() {
     fi
 }
 
-get_sharun_git_url() {
-    echo "${GIT_SHARUN_RELEASES}/download/$(NO_ARIA2C=1 try_dl "${GIT_SHARUN_RELEASES}/latest" \
-    /dev/stdout 2>/dev/null|grep -m1 "Release v.*"|awk '{print$2}')/sharun-$(uname -m)$([ "$UPX_SHARUN" != 1 ]||echo -upx)"
-}
-
-get_wrappe_git_url() {
-    echo "${GIT_WRAPPE_RELEASES}/download/$(NO_ARIA2C=1 try_dl "${GIT_WRAPPE_RELEASES}/latest" \
-    /dev/stdout 2>/dev/null|grep -m1 "Release v.*"|awk '{print$2}')/wrappe-$(uname -m)"
+get_git_url() {
+    echo "$1/download/$(NO_ARIA2C=1 try_dl "$1/latest" \
+    /dev/stdout 2>/dev/null|grep -Em1 "Release (v)?.*"|awk '{print$2}')"
 }
 
 is_url() {
@@ -256,6 +272,15 @@ is_url() {
         then [ "$(check_url_stat_code "$1")" == "$2" ]
         else [ "$(check_url_stat_code "$1")" == "200" ]
     fi
+}
+
+find_py_unneeded() {
+    OLD_IFS="$IFS"
+    IFS=$'\n'
+    PY_UNNEEDED_LIST=($(find "$1" -type f -iname '*.rst' -o -iname '*.cmd' \
+        -o -iname '*.md' -o -iname '*.txt' -o -name 'LICENSE*' \
+        -o -iname '*.exe' -o -iname '*.whl'))
+    IFS="$OLD_IFS"
 }
 
 is_net_conn() {
@@ -346,11 +371,14 @@ while [[ "$#" -gt 0 ]]; do
         -e|--strace-mode) STRACE_MODE=1; shift ;;
         -w|--with-sharun) WITH_SHARUN=1; shift ;;
         -o|--with-wrappe) WITH_WRAPPE=1; shift ;;
+        -y|--with-python) WITH_PYTHON=1; shift ;;
         -r|--patch-rpath) PATCH_RPATH=1; shift ;;
         -g|--gen-lib-path) GEN_LIB_PATH=1; shift ;;
         -u|--wrappe-no-cleanup) WRAPPE_CLEANUP=0; shift ;;
         -i|--patch-interpreter) PATCH_INTERPRETER=1; shift ;;
         -d|--dst-dir) parse_arg_options DST_DIR "$1" "$2"; shift 2 ;;
+        -pv|--python-ver) parse_arg_options PYTHON_VER "$1" "$2"; shift 2 ;;
+        -pp|--python-pkg) parse_arg_options PYTHON_PKG "$1" "$2"; shift 2 ;;
         -t|--strace-time) parse_arg_options STRACE_TIME "$1" "$2"; shift 2 ;;
         -x|--wrappe-exec) parse_arg_options WRAPPE_EXEC "$1" "$2"; shift 2 ;;
         -c|--wrappe-clvl) parse_arg_options WRAPPE_CLVL "$1" "$2"; shift 2 ;;
@@ -361,6 +389,14 @@ while [[ "$#" -gt 0 ]]; do
     esac
 done
 
+if [ "$VERBOSE" == 1 ]
+    then
+        varg='-v'
+        pvarg='--debug'
+    else
+        unset varg pvarg
+fi
+
 if [[ -n "$WRAPPE_DIR" && ! -x "$WRAPPE_DIR/sharun" ]]
     then error_msg 'sharun was not found in specified wrappe directory!'; exit 1
 fi
@@ -369,38 +405,121 @@ fi
     STRACE_TIME=5
 
 [[ -n "$WRAPPE_EXEC" || -n "$WRAPPE_ARGS" || -d "$WRAPPE_DIR" ]] && \
-    WITH_WRAPPE=1 GEN_LIB_PATH=1
+    WITH_WRAPPE=1
 (( WRAPPE_CLVL >= 0 && WRAPPE_CLVL <= 22 ))||\
     WRAPPE_CLVL=8
+[ -d "$WRAPPE_DIR" ] && \
+WRAPPE_DIR="$(readlink -f "$WRAPPE_DIR")"
 [ "$WITH_WRAPPE" == 1 ] && \
-    WITH_SHARUN=1
+    WITH_SHARUN=1 GEN_LIB_PATH=1
 
+[[ -n "$PYTHON_PKG" ]] && WITH_PYTHON=1
+[[ "$PYTHON_VER" =~ ^[0-9]+\.[0-9]+$ ]] && \
+    WITH_PYTHON=1||unset PYTHON_VER
+
+if [ "$WITH_PYTHON" == 1 ]
+    then
+        ONE_DIR=1
+        WITH_SHARUN=1
+        TMP_UV="${TMPDIR}/uv-$(uname -m)-unknown-linux-musl/uv"
+        UV="${UV:="$(readlink -f "$(which_exe uv)")"}"
+        UV="${UV:="$TMP_UV"}"
+        if [ ! -x "$UV" ]
+            then
+                if [[ "${UV,,}" =~ ^http ]]
+                    then
+                        UV_URL="$UV"
+                        UV="$TMP_UV"
+                fi
+                UV_URL="${UV_URL:=$(get_git_url "$GIT_UV_RELEASES")/uv-$(uname -m)-unknown-linux-musl.tar.gz}"
+                info_msg "Downloading uv -> '$UV'..."
+                info_msg "$UV_URL"
+                if NO_ARIA2C=1 try_dl "$UV_URL" '/dev/stdout'|tar -zxvf- -C "$TMPDIR"
+                    then chmod $varg +x "$UV"
+                    else
+                        error_msg "Failed to download uv!"
+                        exit 1
+                fi
+        fi
+        if [ ! -x "$UV" ]
+            then
+                error_msg "uv not found!"
+                exit 1
+        fi
+fi
+
+BINARY_LIST=()
+unset STRACE_EXE
 declare -A DST_DIRS
-if [  ! -d "$WRAPPE_DIR" ]
+[ -n "$DST_DIR" ] && \
+DST_DIR="$(readlink -f "$DST_DIR")"
+if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
     then
         if [ "$2" == '--' ]
             then
                 STRACE_MODE=1
-                BINARY_LIST=("$1"); shift 2
-                STRACE_CMD_ARGS=("$@")
+                STRACE_EXE="$1"; shift 2
+                STRACE_CMD_ARGS=("$@"); shift "${#@}"
         fi
 
         check_deps
 
-        if [ "$VERBOSE" == 1 ]
+        if [ "$WITH_PYTHON" == 1 ]
             then
-                varg='-v'
-                pvarg='--debug'
-            else
-                unset varg pvarg
+                PYTMP_DIR="$DST_DIR/pytmp-$$"
+                info_msg "$YELLOW[ PYTHON INSTALL ]: $BLUE[$PYINSTALL_DIR] ${GREEN}..."
+                "$UV" python install --install-dir "$PYINSTALL_DIR" $PYTHON_VER||exit 1
+                CPYTHON_VER="$(ls -r1 "$PYINSTALL_DIR"|grep -m1 "cpython-${PYTHON_VER}.*-linux-$(uname -m).*")"
+                CPYTHON_DIR="$PYINSTALL_DIR/$CPYTHON_VER"
+                if [[ -n "$CPYTHON_VER" && -d "$CPYTHON_DIR" ]]
+                    then
+                        info_msg "$YELLOW[ PYTHON VERSION ]: $BLUE[$CPYTHON_VER]"
+                        try_mkdir "$PYTMP_DIR"
+                        try_cp -T "$PYINSTALL_DIR/$CPYTHON_VER" "$PYTMP_DIR"
+                        find_py_unneeded "$PYTMP_DIR/"
+                        rm -rf "$PYTMP_DIR"/{.lock,share} "$PYTMP_DIR/lib"/!(pkgconfig|*python*) "${PY_UNNEEDED_LIST[@]}"
+                        if [ -n "$PYTHON_PKG" ]
+                            then
+                                info_msg "$YELLOW[ PIP INSTALL ]: $BLUE[$PYTHON_PKG -> $PYTMP_DIR] ${GREEN}..."
+                                "$UV" pip install --prefix "$PYTMP_DIR" --compile-bytecode --refresh \
+                                    --python "$PYTMP_DIR/bin/python" "$PYTHON_PKG"||exit 1
+                                find_py_unneeded "$PYTMP_DIR/"
+                                rm -rf "$PYTMP_DIR"/{.lock,include} \
+                                    "$PYTMP_DIR/lib/pkgconfig" \
+                                    "$PYTMP_DIR/share/man" \
+                                    "$PYTMP_DIR/lib"/python*/config-*-linux* \
+                                    "$PYTMP_DIR"/lib/python*/ensurepip \
+                                    "$PYTMP_DIR"/lib/python*/site-packages/{pip,pip-*} \
+                                    "$PYTMP_DIR/bin"/{pip,python*-config}* \
+                                    "${PY_UNNEEDED_LIST[@]}"
+                        fi
+                    else
+                        error_msg "python $CPYTHON_VER not found!"
+                        exit 1
+                fi
+                unset PY_UNNEEDED_LIST
+                [ "$WITH_WRAPPE" == 1 ] && \
+                dst_dir="$DST_DIR/wrappe-$$"||\
+                dst_dir="$DST_DIR"
+                try_mkdir "$dst_dir"
+                try_cp -T "$PYTMP_DIR" "$dst_dir"
+                rm -rf "$PYTMP_DIR"
+                OLD_IFS="$IFS"
+                IFS=$'\n'
+                BINARY_LIST+=(
+                    $(find_exe "$dst_dir/bin/")
+                    #$(find_so "$dst_dir")
+                )
+                IFS="$OLD_IFS"
         fi
 
-        if [ ! -n "$BINARY_LIST" ]
-            then
-                if [ -n "$1" ]
+        if [ -n "$STRACE_EXE" ]
+            then BINARY_LIST+=("$STRACE_EXE")
+        elif [ -n "$1" ]
+            then BINARY_LIST+=("$@")
+            else
+                if [ ! -n "$BINARY_LIST" ]
                     then
-                        BINARY_LIST=("$@")
-                    else
                         error_msg "Specify the executable or shared object!\n"
                         usage
                 fi
@@ -411,9 +530,6 @@ if [  ! -d "$WRAPPE_DIR" ]
             /usr/lib32 /lib /lib64 /lib32 \
             |sort -u \
         )"
-
-        [ -n "$DST_DIR" ] && \
-        DST_DIR="$(readlink -f "$DST_DIR")"
 
         binary_number=1
         declare -A BINARIES
@@ -431,15 +547,21 @@ if [  ! -d "$WRAPPE_DIR" ]
                 if [[ "${BINARIES["$binary"]}" != 1 ]]
                     then
                         binary_name="$(basename "$binary")"
-                        if [ "$ONE_DIR" == 1 ]
+                        if [ "$WITH_PYTHON" != 1 ]
                             then
-                                [ "$WITH_WRAPPE" == 1 ] && \
-                                dst_dir="$DST_DIR/wrappe-$$"||\
-                                dst_dir="$DST_DIR"
-                            else
-                                [ "$WITH_WRAPPE" == 1 ] && \
-                                dst_dir="$DST_DIR/${binary_name}/wrappe-$$"||\
-                                dst_dir="$DST_DIR/${binary_name}"
+                                if [ "$ONE_DIR" == 1 ]
+                                    then
+                                        [ "$WITH_WRAPPE" == 1 ] && \
+                                        dst_dir="$DST_DIR/wrappe-$$"||\
+                                        dst_dir="$DST_DIR"
+                                    else
+                                        [ "$WITH_WRAPPE" == 1 ] && \
+                                        dst_dir="$DST_DIR/${binary_name}/wrappe-$$"||\
+                                        dst_dir="$DST_DIR/${binary_name}"
+                                fi
+                        fi
+                        if [ "$binary" == 'sharun' ]
+                            then binary_src_pth="$dst_dir/sharun"
                         fi
                         dst_dir_pth="${dst_dir}/shared"
                         sharun_bin_dir_pth="${dst_dir}/bin"
@@ -483,7 +605,7 @@ if [  ! -d "$WRAPPE_DIR" ]
                                     then
                                         if [[ "$with_sharun" == 1 && ! -x "${dst_dir}/sharun" ]]
                                             then
-                                                TMP_SHARUN="/tmp/sharun-$(uname -m)$([ "$UPX_SHARUN" != 1 ]||echo -upx)"
+                                                TMP_SHARUN="${TMPDIR}/sharun-$(uname -m)$([ "$UPX_SHARUN" != 1 ]||echo -upx)"
                                                 SHARUN="${SHARUN:="$(readlink -f "$(which_exe sharun)")"}"
                                                 SHARUN="${SHARUN:="$TMP_SHARUN"}"
                                                 if [ ! -x "$SHARUN" ]
@@ -493,7 +615,7 @@ if [  ! -d "$WRAPPE_DIR" ]
                                                                 SHARUN_URL="$SHARUN"
                                                                 SHARUN="$TMP_SHARUN"
                                                         fi
-                                                        SHARUN_URL="${SHARUN_URL:=$(get_sharun_git_url)}"
+                                                        SHARUN_URL="${SHARUN_URL:=$(get_git_url "$GIT_SHARUN_RELEASES")/sharun-$(uname -m)$([ "$UPX_SHARUN" != 1 ]||echo -upx)}"
                                                         info_msg "Downloading sharun -> '$SHARUN'..."
                                                         info_msg "$SHARUN_URL"
                                                         if try_dl "$SHARUN_URL" "$SHARUN"
@@ -586,8 +708,11 @@ if [  ! -d "$WRAPPE_DIR" ]
                                                             lib_dst_pth="$lib_dst_dir_pth/$lib_src_real_name"||\
                                                             lib_dst_pth="$lib_dst_dir_pth/$lib_src_name"
                                                         if [[ ! -d "${dst_dir_pth}/${lib_dir}" && -d "${dst_dir}/${lib_dir}" \
-                                                                && ! -L "${dst_dir}/${lib_dir}" ]]
-                                                            then mv $varg "${dst_dir}/${lib_dir}" "${dst_dir_pth}/${lib_dir}"||exit 1
+                                                                && ! -L "${dst_dir_pth}/${lib_dir}" ]]
+                                                            then
+                                                                (try_mkdir "$dst_dir_pth"
+                                                                try_cd "$dst_dir_pth"
+                                                                try_ln ../$lib_dir $lib_dir)||exit 1
                                                         fi
                                                         try_mkdir "$lib_dst_dir_pth"
                                                         try_cp_exe "$lib_src_pth" "$lib_dst_pth"
@@ -598,7 +723,8 @@ if [  ! -d "$WRAPPE_DIR" ]
                                                         fi
                                                         if [[ "${LIBRARIES["$lib_dst_pth"]}" != 1 ]]
                                                             then
-                                                                if ! is_so && [ ! -L "${dst_dir}/${lib_dir}" ]
+                                                                if ! is_so && [[ ! -d "${dst_dir}/${lib_dir}" && \
+                                                                    ! -L "${dst_dir}/${lib_dir}" ]]
                                                                     then
                                                                         (try_cd "$dst_dir"
                                                                         try_ln shared/$lib_dir $lib_dir)||exit 1
@@ -711,7 +837,7 @@ if [  ! -d "$WRAPPE_DIR" ]
                                                                                             ! grep -q '.*\.so.*'<<<"$bin_to_wrap"
                                                                                             then
                                                                                                 try_mkdir "$bin_dir_pth"
-                                                                                                mv $varg "$bin_to_wrap" "$bin_dir_pth"
+                                                                                                try_mv "$bin_to_wrap" "$bin_dir_pth"
                                                                                                 ln $varg -sr "$dst_dir/sharun" "$dst_webkit_lib_dir/$(basename "$bin_to_wrap")"
                                                                                         fi
                                                                                 done
@@ -796,7 +922,16 @@ if [  ! -d "$WRAPPE_DIR" ]
                                 info_msg "[ DONE ]"
                                 binary_number=$(( $binary_number + 1 ))
                             else
-                                skip_msg "$BLUE[$binary]$YELLOW not executable or shared object!"
+                                if [ -e "$binary_src_pth" ]
+                                    then skip_msg "$BLUE[$binary]$YELLOW not executable or shared object!"
+                                    else
+                                        if [ "$STRACE_EXE" == "$binary" ]
+                                            then
+                                                error_msg "$BLUE[$binary]$RED executable for strace not found!"
+                                                exit 1
+                                            else skip_msg "$BLUE[$binary]$YELLOW not found!"
+                                        fi
+                                fi
                         fi
                         BINARIES["$binary"]=1
                 fi
@@ -808,7 +943,7 @@ fi
 
 if [ "$WITH_WRAPPE" == 1 ]
     then
-        TMP_WRAPPE="/tmp/wrappe-$(uname -m)"
+        TMP_WRAPPE="${TMPDIR}/wrappe-$(uname -m)"
         WRAPPE="${WRAPPE:="$(readlink -f "$(which_exe wrappe)")"}"
         WRAPPE="${WRAPPE:="$TMP_WRAPPE"}"
         if [ ! -x "$WRAPPE" ]
@@ -818,7 +953,7 @@ if [ "$WITH_WRAPPE" == 1 ]
                         WRAPPE_URL="$WRAPPE"
                         WRAPPE="$TMP_WRAPPE"
                 fi
-                WRAPPE_URL="${WRAPPE_URL:=$(get_wrappe_git_url)}"
+                WRAPPE_URL="${WRAPPE_URL:=$(get_git_url "$GIT_WRAPPE_RELEASES")/wrappe-$(uname -m)}"
                 info_msg "Downloading wrappe -> '$WRAPPE'..."
                 info_msg "$WRAPPE_URL"
                 if try_dl "$WRAPPE_URL" "$WRAPPE"
@@ -845,16 +980,15 @@ for dst_dir in "${!DST_DIRS[@]}"
                         if [ -d "$lib_dir" ]
                             then
                                 info_msg "$YELLOW[ GEN LIB PATH ]: $BLUE[${lib_dir}/lib.path]" && \
-                                find_so "$lib_dir"|xargs -I {} dirname "{}"|\
+                                find_so "$lib_dir/"|xargs -I {} dirname "{}"|\
                                 sort -u|sed "s|${lib_dir}|+|g" > "${lib_dir}/lib.path"||exit 1
                         fi
                 done)||exit 1
         fi
         src_dir="${dst_dir%/shared}"
-        src_pdir="$(dirname "$src_dir")"
         if [[ "$WITH_WRAPPE" == 1 && -x "$src_dir/sharun" ]]
             then
-                src_bins=($(find "$src_dir/bin/" -not -type d -executable -printf "%f\n"))
+                src_bins=($(find_exe "$src_dir/bin/" -printf "%f\n"))
                 if [ -n "$src_bins" ]
                     then
                         if [ "${#src_bins[@]}" == 1 ]
@@ -878,12 +1012,17 @@ for dst_dir in "${!DST_DIRS[@]}"
                             then wrappe_args="$wexec_name $WRAPPE_ARGS"
                             else wrappe_args="$WRAPPE_ARGS"
                         fi
-                        [[ ! "$src_pdir" =~ ^"$DST_DIR" ]] && src_pdir="$DST_DIR/$src_pdir"
-                        info_msg "$YELLOW[ PACKING WITH WRAPPE ]..."
+                        [[ ! "$wout_dir" =~ ^"$DST_DIR" ]] && \
+                            wout_dir="$DST_DIR"||\
+                            wout_dir="$(dirname "$src_dir")"
+                        info_msg "$YELLOW[ PACKING WITH WRAPPE ]: $BLUE[$src_dir]"
                         "$WRAPPE" --unpack-target temp --unpack-directory .wrappe \
                             $([ "$WRAPPE_CLEANUP" == 0 ]||echo '--cleanup') --verification none \
                             --show-information none --compression "$WRAPPE_CLVL" "$src_dir" \
-                            "$wrappe_exec" "$src_pdir/$wexec_name" -- $wrappe_args
+                            "$wrappe_exec" "$wout_dir/$wexec_name" -- $wrappe_args||exit 1
+                        if [ ! -d "$WRAPPE_DIR" ]
+                            then rm -rf "$src_dir"
+                        fi
                 fi
         fi
 done
