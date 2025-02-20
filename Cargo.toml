@@ -1,6 +1,6 @@
 [package]
 name = "sharun"
-version = "0.3.8"
+version = "0.3.9"
 readme = "README.md"
 license = "MIT"
 repository = "https://github.com/VHSgunzo/sharun"
@@ -21,6 +21,7 @@ opt-level = 0
 
 [dependencies]
 which = "7.0.0"
+goblin = "0.8.2"
 walkdir = "2.5.0"
 flate2 = "1.0.35"
 userland-execve = "0.2.0"
