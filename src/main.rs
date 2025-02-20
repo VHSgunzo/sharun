@@ -12,8 +12,9 @@ use std::{
 
 use which::which;
 use walkdir::WalkDir;
+use goblin::elf::Elf;
 use flate2::read::DeflateDecoder;
-use nix::unistd::{AccessFlags, access};
+use nix::{libc::execve, unistd::{AccessFlags, access}};
 use include_file_compress::include_file_compress_deflate;
 
 
@@ -106,6 +107,24 @@ fn is_elf32(path: &str) -> Result<bool> {
     Ok(buff[4] == 1)
 }
 
+fn is_elf_section(file_path: &str, section_name: &str) -> Result<bool> {
+    let mut file = File::open(file_path)?;
+    let mut buffer = Vec::new();
+    file.read_to_end(&mut buffer)?;
+    if let Ok(elf) = Elf::parse(&buffer) {
+        if let Some(section_headers) = elf.section_headers.as_slice().get(..) {
+            for section_header in section_headers {
+                if let Some(name) = elf.shdr_strtab.get_at(section_header.sh_name) {
+                    if name == section_name {
+                        return Ok(true)
+                    }
+                }
+            }
+        }
+    }
+    Ok(false)
+}
+
 fn get_env_var<K: AsRef<OsStr>>(key: K) -> String {
     env::var(key).unwrap_or("".into())
 }
@@ -120,7 +139,8 @@ fn add_to_env<K: AsRef<OsStr>, V: AsRef<OsStr>>(key: K, val: V) {
     }
 }
 
-fn read_dotenv(dotenv_dir: &str) {
+fn read_dotenv(dotenv_dir: &str) -> Vec<String> {
+    let mut unset_envs = Vec::new();
     let dotenv_path = PathBuf::from(format!("{dotenv_dir}/.env"));
     if dotenv_path.exists() {
         dotenv::from_path(&dotenv_path).ok();
@@ -132,11 +152,12 @@ fn read_dotenv(dotenv_dir: &str) {
             let string = string.trim();
             if string.starts_with("unset ") {
                 for var_name in string.split_whitespace().skip(1) {
-                    env::remove_var(var_name)
+                    unset_envs.push(var_name.into());
                 }
             }
         }
     }
+    unset_envs
 }
 
 fn gen_library_path(library_path: &str, lib_path_file: &String) {
@@ -374,7 +395,7 @@ fn main() {
         shared_lib
     };
 
-    read_dotenv(&sharun_dir);
+    let unset_envs = read_dotenv(&sharun_dir);
 
     let interpreter = get_interpreter(&library_path).unwrap_or_else(|_|{
         eprintln!("Interpreter not found!");
@@ -594,18 +615,29 @@ fn main() {
         }
     }
 
+    for var_name in unset_envs {
+        env::remove_var(var_name)
+    }
+
     let envs: Vec<CString> = env::vars()
         .map(|(key, value)| CString::new(
             format!("{}={}", key, value)
     ).unwrap()).collect();
+
+    let is_pyinstaller_elf = is_elf_section(&bin, "pydata").unwrap_or(false);
 
     let mut interpreter_args = vec![
         CString::from_str(&interpreter.to_string_lossy()).unwrap(),
         CString::new("--library-path").unwrap(),
         CString::new(library_path).unwrap(),
         CString::new("--argv0").unwrap(),
-        CString::new(arg0_path.to_str().unwrap()).unwrap()
     ];
+
+    if is_pyinstaller_elf {
+        interpreter_args.push(CString::new(&*bin).unwrap())
+    } else {
+        interpreter_args.push(CString::new(arg0_path.to_str().unwrap()).unwrap())
+    }
 
     let preload_path = PathBuf::from(format!("{sharun_dir}/.preload"));
     if preload_path.exists() {
@@ -625,14 +657,26 @@ fn main() {
         }
     }
 
-    interpreter_args.push(CString::new(bin).unwrap());
+    interpreter_args.push(CString::new(&*bin).unwrap());
     for arg in exec_args {
         interpreter_args.push(CString::from_str(&arg).unwrap())
     }
 
-    userland_execve::exec(
-        interpreter.as_path(),
-        &interpreter_args,
-        &envs,
-    )
+    if is_pyinstaller_elf {
+        let mut interpreter_args: Vec<*const i8> = interpreter_args.iter().map(|s| s.as_ptr()).collect();
+        let mut envs: Vec<*const i8> = envs.iter().map(|s| s.as_ptr()).collect();
+        interpreter_args.push(std::ptr::null());
+        envs.push(std::ptr::null());
+        unsafe { execve(
+            interpreter_args[0],
+            interpreter_args.as_ptr(),
+            envs.as_ptr(),
+        ); }
+    } else {
+        userland_execve::exec(
+            interpreter.as_path(),
+            &interpreter_args,
+            &envs,
+        )
+    }
 }

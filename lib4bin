@@ -125,7 +125,7 @@ try_strip() {
     if [[ "$STRIP" == 1 && ! "$FILE_INFO" =~ 'no section header' ]]
         then
             info_msg "$YELLOW[ STRIP ]: $BLUE[$1]"
-            strip -s -R .comment --strip-unneeded "$1"||exit 1
+            strip -s -R .comment --strip-unneeded "$1"
     fi
 }
 
@@ -255,11 +255,13 @@ is_so() { [ -n "$IS_SO" ] && [[ "${binary_name,,}" =~ .*(\.so$|\.so\..*) || "${b
 check_url_stat_code() {
     set -o pipefail
     if is_exe_exist curl
-        then curl -sL -o /dev/null -I -w "%{http_code}" "$@" 2>/dev/null
+        then curl -sL -o /dev/null -I -w "%{http_code}" "$1" 2>/dev/null
     elif is_exe_exist wget
         then wget --no-check-certificate --server-response \
-                --spider "$@"|& awk '/^  HTTP/{print$2}'|tail -1
-    else return 1
+                --spider "$1"|& awk '/^  HTTP/{print$2}'|tail -1
+    else
+        error_msg "Failed to check URL $BLUE[$1]: ${RED}curl and wget not found!"
+        return 1
     fi
 }
 
@@ -295,7 +297,9 @@ is_net_conn() {
         then wget -q --spider github.com &>/dev/null
     elif is_exe_exist ping
         then ping -c 2 github.com &>/dev/null
-    else return 1
+    else
+        error_msg "Failed to check internet connection: nc, curl, wget and ping not found!"
+        return 1
     fi
 }
 
@@ -345,7 +349,7 @@ try_dl() {
                     error_msg "Specify download URL!"
             fi
         else
-            error_msg "There is no internet connection!"
+            error_msg "There is no internet connection?"
     fi
     return $?
 }
@@ -571,6 +575,7 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                 if [[ "${BINARIES["$binary"]}" != 1 ]]
                     then
                         binary_name="$(basename "$binary")"
+                        binary_readlink_name="$(basename "$(readlink "$binary")")"
                         if [ "$WITH_PYTHON" != 1 ]
                             then
                                 if [ "$ONE_DIR" == 1 ]
@@ -624,72 +629,78 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                                         create_links=0
                                         bin_dir_pth="$sharun_bin_dir_pth"
                                 fi
-                                if [ "$LIBS_ONLY" != 1 ] && ! is_so  && \
-                                    [[ "$binary_real_name" != 'sharun' && "$binary_name" != 'sharun' ]]
+                                if [ "$LIBS_ONLY" != 1 ] && ! is_so && [[ "$binary_name" != 'sharun' && \
+                                    "$binary_readlink_name" != 'sharun' ]]
                                     then
-                                        if [[ "$with_sharun" == 1 && ! -x "${dst_dir}/sharun" ]]
+                                        if [ "$binary_real_name" != 'sharun' ]
                                             then
-                                                TMP_SHARUN="${TMPDIR}/sharun-$(uname -m)$([ "$UPX_SHARUN" != 1 ]||echo -upx)"
-                                                SHARUN="${SHARUN:="$(readlink -f "$(which_exe sharun)")"}"
-                                                SHARUN="${SHARUN:="$TMP_SHARUN"}"
-                                                if [ ! -x "$SHARUN" ]
+                                                if [[ "$with_sharun" == 1 && ! -x "${dst_dir}/sharun" ]]
                                                     then
-                                                        if [[ "${SHARUN,,}" =~ ^http ]]
+                                                        TMP_SHARUN="${TMPDIR}/sharun-$(uname -m)$([ "$UPX_SHARUN" != 1 ]||echo -upx)"
+                                                        SHARUN="${SHARUN:="$(readlink -f "$(which_exe sharun)")"}"
+                                                        SHARUN="${SHARUN:="$TMP_SHARUN"}"
+                                                        if [ ! -x "$SHARUN" ]
                                                             then
-                                                                SHARUN_URL="$SHARUN"
-                                                                SHARUN="$TMP_SHARUN"
+                                                                if [[ "${SHARUN,,}" =~ ^http ]]
+                                                                    then
+                                                                        SHARUN_URL="$SHARUN"
+                                                                        SHARUN="$TMP_SHARUN"
+                                                                fi
+                                                                SHARUN_URL="${SHARUN_URL:=$(get_git_url "$GIT_SHARUN_RELEASES")/sharun-$(uname -m)$([ "$UPX_SHARUN" != 1 ]||echo -upx)}"
+                                                                info_msg "Downloading sharun -> '$SHARUN'..."
+                                                                info_msg "$SHARUN_URL"
+                                                                if try_dl "$SHARUN_URL" "$SHARUN"
+                                                                    then chmod $varg +x "$SHARUN"
+                                                                    else
+                                                                        error_msg "Failed to download sharun!"
+                                                                        exit 1
+                                                                fi
                                                         fi
-                                                        SHARUN_URL="${SHARUN_URL:=$(get_git_url "$GIT_SHARUN_RELEASES")/sharun-$(uname -m)$([ "$UPX_SHARUN" != 1 ]||echo -upx)}"
-                                                        info_msg "Downloading sharun -> '$SHARUN'..."
-                                                        info_msg "$SHARUN_URL"
-                                                        if try_dl "$SHARUN_URL" "$SHARUN"
-                                                            then chmod $varg +x "$SHARUN"
+                                                        if [ -x "$SHARUN" ]
+                                                            then
+                                                                try_mkdir "$dst_dir"
+                                                                try_cp_exe "$SHARUN" "${dst_dir}/sharun"
                                                             else
-                                                                error_msg "Failed to download sharun!"
+                                                                error_msg "sharun not found!"
                                                                 exit 1
                                                         fi
                                                 fi
-                                                if [ -x "$SHARUN" ]
+                                                try_mkdir "$bin_dir_pth"
+                                                [ -n "$binary_real_name" ] && \
+                                                    binary_dst_pth="$bin_dir_pth/$binary_real_name"||\
+                                                    binary_dst_pth="$bin_dir_pth/$binary_name"
+                                                try_cp_exe "$binary_src_pth" "$binary_dst_pth"
+                                                if [ -n "$IS_SCRIPT" ]
                                                     then
-                                                        try_mkdir "$dst_dir"
-                                                        try_cp_exe "$SHARUN" "${dst_dir}/sharun"
-                                                    else
-                                                        error_msg "sharun not found!"
-                                                        exit 1
+                                                        for intep in python bash sh ash zsh fish dash perl ruby go
+                                                            do
+                                                                if grep -qo "^#!.*bin/$intep" "$binary_dst_pth"
+                                                                    then
+                                                                        sed -i "1s|^#!.*bin/$intep|#!/usr/bin/env $intep|" "$binary_dst_pth"
+                                                                        break
+                                                                fi
+                                                        done
                                                 fi
-                                        fi
-                                        try_mkdir "$bin_dir_pth"
-                                        [ -n "$binary_real_name" ] && \
-                                            binary_dst_pth="$bin_dir_pth/$binary_real_name"||\
-                                            binary_dst_pth="$bin_dir_pth/$binary_name"
-                                        try_cp_exe "$binary_src_pth" "$binary_dst_pth"
-                                        if [ -n "$IS_SCRIPT" ]
-                                            then
-                                                for intep in python bash sh ash zsh fish dash perl ruby go
-                                                    do
-                                                        if grep -qo "^#!.*bin/$intep" "$binary_dst_pth"
-                                                            then
-                                                                sed -i "1s|^#!.*bin/$intep|#!/usr/bin/env $intep|" "$binary_dst_pth"
-                                                                break
+                                                if [[ "${BINARIES["$binary_dst_pth"]}" != 1 ]]
+                                                    then
+                                                        if [ -n "$IS_ELF" ]
+                                                            then try_strip "$binary_dst_pth"
                                                         fi
-                                                done
+                                                        if [[ -n "$LIBS" && ! -n "$IS_SCRIPT" && ! -n "$IS_STATIC" ]]
+                                                            then
+                                                                repath_needed_libs "$binary_dst_pth" "$needed_libs"
+                                                                try_set_rpath "$binary_dst_pth"
+                                                        fi
+                                                        BINARIES["$binary_dst_pth"]=1
+                                                fi
+                                            else
+                                                bin_dir_pth="${dst_dir_pth}/bin"
+                                                binary_real_name="$binary_readlink_name"
                                         fi
                                         if [[ -n "$binary_real_name" && "$binary_name" != "$binary_real_name" ]]
                                             then
                                                 (try_cd "$bin_dir_pth"
                                                 try_ln "$binary_real_name" "$binary_name")||exit 1
-                                        fi
-                                        if [[ "${BINARIES["$binary_dst_pth"]}" != 1 ]]
-                                            then
-                                                if [ -n "$IS_ELF" ]
-                                                    then try_strip "$binary_dst_pth"
-                                                fi
-                                                if [[ -n "$LIBS" && ! -n "$IS_SCRIPT" && ! -n "$IS_STATIC" ]]
-                                                    then
-                                                        repath_needed_libs "$binary_dst_pth" "$needed_libs"
-                                                        try_set_rpath "$binary_dst_pth"
-                                                fi
-                                                BINARIES["$binary_dst_pth"]=1
                                         fi
                                         if [ "$create_links" == 1 ]
                                             then
