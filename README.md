@@ -82,6 +82,9 @@ cp ./target/$(uname -m)-unknown-linux-musl/release/sharun .
                                 (env: WITH_PYTHON=1, UV=/path|URL, UV_URL=URL)
     -pp, --python-pkg 'pkg'  Specify the python package for packing (env: PYTHON_PKG='pkg')
     -pv, --python-ver 3.12   Specify the python version for packing (env: PYTHON_VER=3.12)
+    -pi, --python-pip        Leave pip after install python package (env: PYTHON_LEAVE_PIP=1)
+    -pw, --python-wheel      Leave wheel after install python package (env: PYTHON_LEAVE_WHEEL=1)
+    -ps, --python-setuptools Leave setuptools after install python package (env: PYTHON_LEAVE_SETUPTOOLS=1)
 ```
 
 ## Examples:
