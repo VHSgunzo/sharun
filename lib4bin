@@ -278,7 +278,7 @@ find_py_unneeded() {
     OLD_IFS="$IFS"
     IFS=$'\n'
     PY_UNNEEDED_LIST=($(find "$1" -type f -iname '*.rst' -o -iname '*.cmd' \
-        -o -iname '*.md' -o -iname '*.txt' -o -name 'LICENSE*' \
+        -o -iname '*.md' -o -name 'LICENSE*' \
         -o -iname '*.exe' -o -iname '*.whl'))
     IFS="$OLD_IFS"
 }
@@ -481,8 +481,11 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                         if [ -n "$PYTHON_PKG" ]
                             then
                                 info_msg "$YELLOW[ PIP INSTALL ]: $BLUE[$PYTHON_PKG -> $PYTMP_DIR] ${GREEN}..."
-                                "$UV" pip install --prefix "$PYTMP_DIR" --compile-bytecode --refresh \
-                                    --python "$PYTMP_DIR/bin/python" "$PYTHON_PKG"||exit 1
+                                "$UV" pip install --prefix "$PYTMP_DIR" --compile-bytecode --refresh --upgrade \
+                                    --python "$PYTMP_DIR/bin/python" --link-mode=copy --prerelease=allow \
+                                    pip setuptools wheel "$PYTHON_PKG"||exit 1
+                                "$UV" pip uninstall --prefix "$PYTMP_DIR" --python "$PYTMP_DIR/bin/python" \
+                                    pip setuptools wheel||exit 1
                                 find_py_unneeded "$PYTMP_DIR/"
                                 rm -rf "$PYTMP_DIR"/{.lock,include} \
                                     "$PYTMP_DIR/lib/pkgconfig" \
