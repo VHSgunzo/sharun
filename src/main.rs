@@ -14,7 +14,7 @@ use which::which;
 use walkdir::WalkDir;
 use goblin::elf::Elf;
 use flate2::read::DeflateDecoder;
-use nix::{libc::execve, unistd::{AccessFlags, access}};
+use nix::unistd::{AccessFlags, access};
 use include_file_compress::include_file_compress_deflate;
 
 
@@ -619,11 +619,6 @@ fn main() {
         env::remove_var(var_name)
     }
 
-    let envs: Vec<CString> = env::vars()
-        .map(|(key, value)| CString::new(
-            format!("{}={}", key, value)
-    ).unwrap()).collect();
-
     let is_pyinstaller_elf = is_elf_section(&bin, "pydata").unwrap_or(false);
 
     let mut interpreter_args = vec![
@@ -663,16 +658,19 @@ fn main() {
     }
 
     if is_pyinstaller_elf {
-        let mut interpreter_args: Vec<*const i8> = interpreter_args.iter().map(|s| s.as_ptr()).collect();
-        let mut envs: Vec<*const i8> = envs.iter().map(|s| s.as_ptr()).collect();
-        interpreter_args.push(std::ptr::null());
-        envs.push(std::ptr::null());
-        unsafe { execve(
-            interpreter_args[0],
-            interpreter_args.as_ptr(),
-            envs.as_ptr(),
-        ); }
+        let interpreter_args: Vec<String> = interpreter_args.iter()
+            .map(|s| s.clone().into_string().unwrap()).skip(1).collect();
+
+        let _ = Command::new(interpreter)
+            .args(interpreter_args)
+            .envs(env::vars())
+            .exec();
     } else {
+        let envs: Vec<CString> = env::vars()
+            .map(|(key, value)| CString::new(
+                format!("{}={}", key, value)
+        ).unwrap()).collect();
+
         userland_execve::exec(
             interpreter.as_path(),
             &interpreter_args,

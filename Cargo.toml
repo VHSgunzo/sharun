@@ -20,7 +20,7 @@ panic = "abort"
 opt-level = 0
 
 [dependencies]
-which = "7.0.0"
+which = "7.0.2"
 goblin = "0.8.2"
 walkdir = "2.5.0"
 flate2 = "1.0.35"
