@@ -71,7 +71,10 @@ usage() {
     -y, --with-python        Pack python using uv from PATH or env or download
                                 (env: WITH_PYTHON=1, UV=/path|URL, UV_URL=URL)
     -pp, --python-pkg 'pkg'  Specify the python package for packing (env: PYTHON_PKG='pkg')
-    -pv, --python-ver 3.12   Specify the python version for packing (env: PYTHON_VER=3.12)"
+    -pv, --python-ver 3.12   Specify the python version for packing (env: PYTHON_VER=3.12)
+    -pi, --python-pip        Leave pip after install python package (env: PYTHON_LEAVE_PIP=1)
+    -pw, --python-wheel      Leave wheel after install python package (env: PYTHON_LEAVE_WHEEL=1)
+    -ps, --python-setuptools Leave setuptools after install python package (env: PYTHON_LEAVE_SETUPTOOLS=1)"
     exit 1
 }
 
@@ -278,8 +281,8 @@ find_py_unneeded() {
     OLD_IFS="$IFS"
     IFS=$'\n'
     PY_UNNEEDED_LIST=($(find "$1" -type f -iname '*.rst' -o -iname '*.cmd' \
-        -o -iname '*.md' -o -name 'LICENSE*' \
-        -o -iname '*.exe' -o -iname '*.whl'))
+        -o -iname '*.md' -o -name 'LICENSE*' -o -iname '*.ps1' \
+        -o -iname '*.bat' -o -iname '*.exe' -o -iname '*.whl'))
     IFS="$OLD_IFS"
 }
 
@@ -373,6 +376,9 @@ while [[ "$#" -gt 0 ]]; do
         -o|--with-wrappe) WITH_WRAPPE=1; shift ;;
         -y|--with-python) WITH_PYTHON=1; shift ;;
         -r|--patch-rpath) PATCH_RPATH=1; shift ;;
+        -pi|--python-pip) PYTHON_LEAVE_PIP=1; shift ;;
+        -pw|--python-wheel) PYTHON_LEAVE_WHEEL=1; shift ;;
+        -ps|--python-setuptools) PYTHON_LEAVE_SETUPTOOLS=1; shift ;;
         -g|--gen-lib-path) GEN_LIB_PATH=1; shift ;;
         -u|--wrappe-no-cleanup) WRAPPE_CLEANUP=0; shift ;;
         -i|--patch-interpreter) PATCH_INTERPRETER=1; shift ;;
@@ -484,17 +490,29 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                                 "$UV" pip install --prefix "$PYTMP_DIR" --compile-bytecode --refresh --upgrade \
                                     --python "$PYTMP_DIR/bin/python" --link-mode=copy --prerelease=allow \
                                     pip setuptools wheel "$PYTHON_PKG"||exit 1
-                                "$UV" pip uninstall --prefix "$PYTMP_DIR" --python "$PYTMP_DIR/bin/python" \
-                                    pip setuptools wheel||exit 1
                                 find_py_unneeded "$PYTMP_DIR/"
-                                rm -rf "$PYTMP_DIR"/{.lock,include} \
-                                    "$PYTMP_DIR/lib/pkgconfig" \
-                                    "$PYTMP_DIR/share/man" \
-                                    "$PYTMP_DIR/lib"/python*/config-*-linux* \
-                                    "$PYTMP_DIR"/lib/python*/ensurepip \
-                                    "$PYTMP_DIR"/lib/python*/site-packages/{pip,pip-*} \
-                                    "$PYTMP_DIR/bin"/{pip,python*-config}* \
-                                    "${PY_UNNEEDED_LIST[@]}"
+                                PY_UNINSTALL_LIST=()
+                                if [ "$PYTHON_LEAVE_PIP" != 1 ]
+                                    then
+                                        PY_UNINSTALL_LIST+=(pip)
+                                        PY_UNNEEDED_LIST+=(
+                                            "$PYTMP_DIR/lib/pkgconfig"
+                                            "$PYTMP_DIR"/{.lock,include}
+                                            "$PYTMP_DIR"/lib/python*/ensurepip
+                                            "$PYTMP_DIR/bin"/{pip,python*-config}*
+                                            "$PYTMP_DIR/lib"/python*/config-*-linux*
+                                            "$PYTMP_DIR"/lib/python*/site-packages/{pip,pip-*}
+                                        )
+
+                                fi
+                                [ "$PYTHON_LEAVE_WHEEL" == 1 ]||PY_UNINSTALL_LIST+=(wheel)
+                                [ "$PYTHON_LEAVE_SETUPTOOLS" == 1 ]||PY_UNINSTALL_LIST+=(setuptools)
+                                if [ -n "$PY_UNINSTALL_LIST" ]
+                                    then
+                                        "$UV" pip uninstall --prefix "$PYTMP_DIR" --python "$PYTMP_DIR/bin/python" \
+                                            "${PY_UNINSTALL_LIST[@]}"||exit 1
+                                fi
+                                rm -rf "$PYTMP_DIR/share/man" "${PY_UNNEEDED_LIST[@]}"
                         fi
                     else
                         error_msg "python $CPYTHON_VER not found!"
