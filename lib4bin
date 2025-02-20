@@ -885,9 +885,9 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                                                                                 fi ;;
                                                                             */libmagic.so*)
                                                                                 dst_magic_file="$dst_dir/share/file/misc/magic.mgc"
-                                                                                for magic_file_dir in 'misc' 'file/misc'
+                                                                                for magic_file_dir in 'file' 'file/misc' 'misc'
                                                                                     do
-                                                                                        sys_magic_file="/usr/share/$magic_file_dir/magic.mgc"
+                                                                                        sys_magic_file="$(readlink -f "/usr/share/$magic_file_dir/magic.mgc")"
                                                                                         if [[ -f "$sys_magic_file" && ! -f "$dst_magic_file" ]]
                                                                                             then
                                                                                                 hook_msg "copy magic file..."
