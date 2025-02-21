@@ -178,6 +178,7 @@ This can be useful, for example, to use [ld-preload-open](https://github.com/fri
 |`GIMP2_SYSCONFDIR` | `${SHARUN_DIR}/etc/gimp/2.0`|
 
 ## Projects that use sharun:
+* [SoarPkgs](https://github.com/pkgforge/soarpkgs)
 * [pelfCreator](https://github.com/xplshn/pelf/blob/pelf-ng/pelfCreator)
 * [AppBundleHUB](https://github.com/xplshn/AppBundleHUB)
 * [android-tools-AppImage](https://github.com/Samueru-sama/android-tools-AppImage)
