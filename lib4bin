@@ -732,7 +732,7 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                                                         if [[ -n "$LIBS" && ! -n "$IS_SCRIPT" && ! -n "$IS_STATIC" ]]
                                                             then
                                                                 repath_needed_libs "$binary_dst_pth" "$needed_libs"
-                                                                IS_PYINSTELF="$(grep -aom1 'PyInstaller.*PKG archive' "$binary_src_pth")"
+                                                                IS_PYINSTELF="$(grep -aom1 'PyInstaller' "$binary_src_pth")"
                                                                 if [ -n "$IS_PYINSTELF" ]
                                                                     then
                                                                         pyinternal_dir="$(readlink -f "$(dirname "$binary_src_pth")/_internal")"
