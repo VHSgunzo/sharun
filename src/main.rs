@@ -2,19 +2,19 @@ use std::{
     env, fs,
     str::FromStr,
     collections::HashSet,
-    ffi::{CString, OsStr},
     path::{Path, PathBuf},
+    ffi::{CString, OsStr},
     process::{Command, Stdio, exit},
-    io::{Read, Result, Error, Write},
     fs::{File, write, read_to_string},
-    os::unix::{fs::{MetadataExt, PermissionsExt}, process::CommandExt}
+    os::unix::{fs::{MetadataExt, PermissionsExt}, process::CommandExt},
+    io::{Seek, Read, Result, Error, Write, SeekFrom, ErrorKind::InvalidData}
 };
 
 use which::which;
 use walkdir::WalkDir;
-use goblin::elf::Elf;
 use flate2::read::DeflateDecoder;
 use nix::unistd::{AccessFlags, access};
+use goblin::elf::{Elf, program_header::PT_INTERP};
 use include_file_compress::include_file_compress_deflate;
 
 
@@ -97,21 +97,29 @@ fn is_exe(path: &PathBuf) -> bool {
     false
 }
 
-fn is_elf32(path: &str) -> Result<bool> {
-    let mut file = File::open(path)?;
-    let mut buff = [0u8; 5];
-    file.read_exact(&mut buff)?;
-    if &buff[0..4] != b"\x7fELF" {
+fn is_elf32(elf_bytes: &Vec<u8>) -> Result<bool> {
+    if &elf_bytes[0..4] != b"\x7fELF" {
         return Ok(false)
     }
-    Ok(buff[4] == 1)
+    Ok(elf_bytes[4] == 1)
 }
 
-fn is_elf_section(file_path: &str, section_name: &str) -> Result<bool> {
-    let mut file = File::open(file_path)?;
-    let mut buffer = Vec::new();
-    file.read_to_end(&mut buffer)?;
-    if let Ok(elf) = Elf::parse(&buffer) {
+fn get_elf(path: &String) -> Result<Vec<u8>> {
+    let mut file = File::open(path)?;
+    let mut elf_header_raw = [0; 64];
+    file.read_exact(&mut elf_header_raw)?;
+    let section_table_offset = u64::from_le_bytes(elf_header_raw[40..48].try_into().unwrap()); // e_shoff
+    let section_count = u16::from_le_bytes(elf_header_raw[60..62].try_into().unwrap()); // e_shnum
+    let section_table_size = section_count as u64 * 64;
+    let required_bytes = section_table_offset + section_table_size;
+    let mut headers_bytes = vec![0; required_bytes as usize];
+    file.seek(SeekFrom::Start(0))?;
+    file.read_exact(&mut headers_bytes)?;
+    Ok(headers_bytes.clone())
+}
+
+fn is_elf_section(elf_bytes: &Vec<u8>, section_name: &str) -> Result<bool> {
+    if let Ok(elf) = Elf::parse(&elf_bytes) {
         if let Some(section_headers) = elf.section_headers.as_slice().get(..) {
             for section_header in section_headers {
                 if let Some(name) = elf.shdr_strtab.get_at(section_header.sh_name) {
@@ -123,6 +131,42 @@ fn is_elf_section(file_path: &str, section_name: &str) -> Result<bool> {
         }
     }
     Ok(false)
+}
+
+fn write_file<'a>(elf_path: &String, bytes: &Vec<u8>) -> Result<bool> {
+    let mut file = File::create(elf_path)?;
+    file.write_all(bytes)?;
+    Ok(true)
+}
+
+fn set_interp(mut elf_bytes: Vec<u8>, elf_path: &String, new_interp: &str) -> Result<bool> {
+    let elf = Elf::parse(&elf_bytes)
+        .map_err(|e| Error::new(InvalidData, e))?;
+    let interp_header = elf.program_headers.iter().find(|header| header.p_type == PT_INTERP);
+    match interp_header {
+        Some(header) => {
+            let start = header.p_offset as usize;
+            let end = start + header.p_filesz as usize;
+            let interp_slice = &mut elf_bytes[start..end];
+            if interp_slice.last() != Some(&0) {
+                return Err(Error::new(InvalidData, "Current INTERP not NUL terminated"));
+            }
+            if new_interp.len() > (header.p_filesz as usize) - 1 {
+                return Err(Error::new(InvalidData, "Current INTERP too small"));
+            }
+            let new_interp_bytes = new_interp.as_bytes();
+            interp_slice[..new_interp_bytes.len()].copy_from_slice(new_interp_bytes);
+            for i in new_interp_bytes.len()..((header.p_filesz as usize) - 1) {
+                interp_slice[i] = 0;
+            }
+            interp_slice[(header.p_filesz as usize) - 1] = 0;
+            write_file(elf_path, &elf_bytes)?;
+        }
+        None => {
+            return Err(Error::new(InvalidData, "Failed to find PT_INTERP header"));
+        }
+    }
+    Ok(true)
 }
 
 fn get_env_var<K: AsRef<OsStr>>(key: K) -> String {
@@ -384,7 +428,12 @@ fn main() {
     }
     let bin = format!("{shared_bin}/{bin_name}");
 
-    let is_elf32_bin = is_elf32(&bin).unwrap_or_else(|err|{
+    let elf_bytes = get_elf(&bin).unwrap_or_else(|err|{
+        eprintln!("Failed to read ELF: {}: {err}", &bin);
+        exit(1)
+    });
+
+    let is_elf32_bin = is_elf32(&elf_bytes).unwrap_or_else(|err|{
         eprintln!("Failed to check ELF class: {bin}: {err}");
         exit(1)
     });
@@ -619,13 +668,13 @@ fn main() {
         env::remove_var(var_name)
     }
 
-    let is_pyinstaller_elf = is_elf_section(&bin, "pydata").unwrap_or(false);
+    let is_pyinstaller_elf = is_elf_section(&elf_bytes, "pydata").unwrap_or(false);
 
     let mut interpreter_args = vec![
         CString::from_str(&interpreter.to_string_lossy()).unwrap(),
         CString::new("--library-path").unwrap(),
-        CString::new(library_path).unwrap(),
-        CString::new("--argv0").unwrap(),
+        CString::new(&*library_path).unwrap(),
+        CString::new("--argv0").unwrap()
     ];
 
     if is_pyinstaller_elf {
@@ -653,18 +702,31 @@ fn main() {
     }
 
     interpreter_args.push(CString::new(&*bin).unwrap());
-    for arg in exec_args {
+    for arg in &exec_args {
         interpreter_args.push(CString::from_str(&arg).unwrap())
     }
 
     if is_pyinstaller_elf {
-        let interpreter_args: Vec<String> = interpreter_args.iter()
-            .map(|s| s.clone().into_string().unwrap()).skip(1).collect();
-
-        let _ = Command::new(interpreter)
-            .args(interpreter_args)
-            .envs(env::vars())
-            .exec();
+        if Path::new(&shared_bin).join("_internal").exists() {
+            let interpreter_args: Vec<String> = interpreter_args.iter()
+                .map(|s| s.clone().into_string().unwrap()).skip(1).collect();
+    
+            let _ = Command::new(interpreter)
+                .args(interpreter_args)
+                .envs(env::vars())
+                .exec();
+        } else {
+            set_interp(elf_bytes, &bin, interpreter.to_str().unwrap())
+                .unwrap_or_else(|err|{
+                    eprintln!("Failed to set ELF interpreter: {}: {err}", &bin);
+                    exit(1)
+            });
+    
+            let _ = Command::new(bin)
+                .args(exec_args)
+                .envs(env::vars())
+                .exec();
+        }
     } else {
         let envs: Vec<CString> = env::vars()
             .map(|(key, value)| CString::new(
