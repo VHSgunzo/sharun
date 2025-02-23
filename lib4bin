@@ -130,25 +130,27 @@ try_strip() {
     fi
 }
 
-try_set_rpath() {
-    if [ "$PATCH_RPATH" == 1 ]
+try_remove_fullrpath() {
+    if [ "$PATCH_RPATH" != 1 ]
         then
-            info_msg "$YELLOW[ SET RPATH ]: $BLUE[$1 -> $rpath]"
-            if [ -n "$2" ]
-                then local rpath="$2"
-                else local rpath='$ORIGIN/../lib:$ORIGIN/../lib32'
-            fi
-            patchelf $pvarg --remove-rpath "$1"||exit 1
-            patchelf $pvarg --set-rpath "$rpath" --force-rpath "$1"||exit 1
-            patchelf $pvarg --no-default-lib "$1"||exit 1
-        else
             local rpath="$(print_rpath "$1")"
             if grep -qE '^/|:/'<<<"$rpath"
                 then
-                    info_msg "$YELLOW[ REMOVE RPATH ]: $BLUE[$rpath]"
+                    info_msg "$YELLOW[ REMOVE RPATH ]: $BLUE[$1 -> $rpath]"
                     patchelf $pvarg --remove-rpath "$1"||exit 1
             fi
     fi
+}
+
+try_set_rpath() {
+    info_msg "$YELLOW[ SET RPATH ]: $BLUE[$1 -> $rpath]"
+    if [ -n "$2" ]
+        then local rpath="$2"
+        else local rpath='$ORIGIN/../lib:$ORIGIN/../lib32'
+    fi
+    patchelf $pvarg --remove-rpath "$1"||exit 1
+    patchelf $pvarg --set-rpath "$rpath" --force-rpath "$1"||exit 1
+    patchelf $pvarg --no-default-lib "$1"||exit 1
 }
 
 get_md5sum() { md5sum<<<"$1"|awk '{print$1}'; }
@@ -732,6 +734,7 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                                                         if [[ -n "$LIBS" && ! -n "$IS_SCRIPT" && ! -n "$IS_STATIC" ]]
                                                             then
                                                                 repath_needed_libs "$binary_dst_pth" "$needed_libs"
+                                                                try_remove_fullrpath "$binary_dst_pth"
                                                                 IS_PYINSTELF="$(grep -aom1 'PyInstaller' "$binary_src_pth")"
                                                                 if [ -n "$IS_PYINSTELF" ]
                                                                     then
@@ -830,6 +833,7 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                                                                 fi
                                                                 repath_needed_libs "$lib_dst_pth"
                                                                 try_strip "$lib_dst_pth"
+                                                                try_remove_fullrpath "$lib_dst_pth"
                                                                 if [ "$WITH_HOOKS" == 1 ]
                                                                     then
                                                                         case "$lib_dst_pth" in
@@ -1114,7 +1118,7 @@ for dst_dir in "${!DST_DIRS[@]}"
                                                         done
                                                         if [[ ! "$abs_path" =~ /ld-(linux|musl).*\.so && \
                                                             ! "$abs_path" =~ ld-[0-9]\.[0-9]+\.so ]]
-                                                            then PATCH_RPATH=1 try_set_rpath "$abs_path" "$rpath"
+                                                            then try_set_rpath "$abs_path" "$rpath"
                                                         fi
                                                 done
                                         fi

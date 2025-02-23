@@ -97,7 +97,7 @@ fn is_exe(path: &PathBuf) -> bool {
     false
 }
 
-fn is_elf32(elf_bytes: &Vec<u8>) -> Result<bool> {
+fn is_elf32(elf_bytes: &[u8]) -> Result<bool> {
     if &elf_bytes[0..4] != b"\x7fELF" {
         return Ok(false)
     }
@@ -118,8 +118,8 @@ fn get_elf(path: &String) -> Result<Vec<u8>> {
     Ok(headers_bytes.clone())
 }
 
-fn is_elf_section(elf_bytes: &Vec<u8>, section_name: &str) -> Result<bool> {
-    if let Ok(elf) = Elf::parse(&elf_bytes) {
+fn is_elf_section(elf_bytes: &[u8], section_name: &str) -> Result<bool> {
+    if let Ok(elf) = Elf::parse(elf_bytes) {
         if let Some(section_headers) = elf.section_headers.as_slice().get(..) {
             for section_header in section_headers {
                 if let Some(name) = elf.shdr_strtab.get_at(section_header.sh_name) {
@@ -133,7 +133,7 @@ fn is_elf_section(elf_bytes: &Vec<u8>, section_name: &str) -> Result<bool> {
     Ok(false)
 }
 
-fn write_file<'a>(elf_path: &String, bytes: &Vec<u8>) -> Result<bool> {
+fn write_file(elf_path: &String, bytes: &[u8]) -> Result<bool> {
     let mut file = File::create(elf_path)?;
     file.write_all(bytes)?;
     Ok(true)
@@ -669,45 +669,50 @@ fn main() {
     }
 
     let is_pyinstaller_elf = is_elf_section(&elf_bytes, "pydata").unwrap_or(false);
+    let is_pyinstaller_dir = Path::new(&shared_bin).join("_internal").exists();
 
-    let mut interpreter_args = vec![
-        CString::from_str(&interpreter.to_string_lossy()).unwrap(),
-        CString::new("--library-path").unwrap(),
-        CString::new(&*library_path).unwrap(),
-        CString::new("--argv0").unwrap()
-    ];
+    let mut interpreter_args: Vec<CString> = Vec::new();
+    if !is_pyinstaller_elf || is_pyinstaller_dir {
+        interpreter_args.append(&mut vec![
+            CString::from_str(&interpreter.to_string_lossy()).unwrap(),
+            CString::new("--library-path").unwrap(),
+            CString::new(&*library_path).unwrap(),
+            CString::new("--argv0").unwrap()
+        ]);        
+
+        if is_pyinstaller_elf {
+            interpreter_args.push(CString::new(&*bin).unwrap())
+        } else {
+            interpreter_args.push(CString::new(arg0_path.to_str().unwrap()).unwrap())
+        }
+
+        let preload_path = PathBuf::from(format!("{sharun_dir}/.preload"));
+        if preload_path.exists() {
+            let data = read_to_string(&preload_path).unwrap_or_else(|err|{
+                eprintln!("Failed to read .preload file: {}: {err}", preload_path.display());
+                exit(1)
+            });
+            let mut preload: Vec<String> = vec![];
+            for string in data.trim().split("\n") {
+                preload.push(string.trim().into());            
+            }
+            if !preload.is_empty() {
+                interpreter_args.append(&mut vec![
+                    CString::new("--preload").unwrap(),
+                    CString::new(preload.join(" ")).unwrap()
+                ])
+            }
+        }
+
+        interpreter_args.push(CString::new(&*bin).unwrap());
+        for arg in &exec_args {
+            interpreter_args.push(CString::from_str(arg).unwrap())
+        }
+    }
 
     if is_pyinstaller_elf {
-        interpreter_args.push(CString::new(&*bin).unwrap())
-    } else {
-        interpreter_args.push(CString::new(arg0_path.to_str().unwrap()).unwrap())
-    }
-
-    let preload_path = PathBuf::from(format!("{sharun_dir}/.preload"));
-    if preload_path.exists() {
-        let data = read_to_string(&preload_path).unwrap_or_else(|err|{
-            eprintln!("Failed to read .preload file: {}: {err}", preload_path.display());
-            exit(1)
-        });
-        let mut preload: Vec<String> = vec![];
-        for string in data.trim().split("\n") {
-            preload.push(string.trim().into());            
-        }
-        if !preload.is_empty() {
-            interpreter_args.append(&mut vec![
-                CString::new("--preload").unwrap(),
-                CString::new(preload.join(" ")).unwrap()
-            ])
-        }
-    }
-
-    interpreter_args.push(CString::new(&*bin).unwrap());
-    for arg in &exec_args {
-        interpreter_args.push(CString::from_str(&arg).unwrap())
-    }
-
-    if is_pyinstaller_elf {
-        if Path::new(&shared_bin).join("_internal").exists() {
+        if is_pyinstaller_dir {
+            drop(elf_bytes);
             let interpreter_args: Vec<String> = interpreter_args.iter()
                 .map(|s| s.clone().into_string().unwrap()).skip(1).collect();
     
@@ -728,6 +733,7 @@ fn main() {
                 .exec();
         }
     } else {
+        drop(elf_bytes);
         let envs: Vec<CString> = env::vars()
             .map(|(key, value)| CString::new(
                 format!("{}={}", key, value)
