@@ -717,7 +717,7 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                                                 try_cp_exe "$binary_src_pth" "$binary_dst_pth"
                                                 if [ -n "$IS_SCRIPT" ]
                                                     then
-                                                        for intep in python bash sh ash zsh fish dash perl ruby go
+                                                        for intep in python bash sh ash zsh fish dash perl ruby go node
                                                             do
                                                                 if grep -qo "^#!.*bin/$intep" "$binary_dst_pth"
                                                                     then
@@ -1141,7 +1141,7 @@ for dst_dir in "${!DST_DIRS[@]}"
                                 fi
                         fi
                         wexec_name="${wrappe_exec##*/}"
-                        IS_SCRIPT="$(file "$wrappe_exec"|grep -o script)"
+                        IS_SCRIPT="$(file "$(readlink -f "$wrappe_exec")"|grep -o script)"
                         if [ -n "$IS_SCRIPT" ]
                             then
                                 wrappe_exec="$src_dir/sharun"
