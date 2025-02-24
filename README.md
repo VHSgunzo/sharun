@@ -138,13 +138,13 @@ wget https://raw.githubusercontent.com/gdraheim/docker-systemctl-replacement/ref
 pyinstaller --name systemctl --onedir systemctl3.py
 
 # download sharun aio:
-wget https://github.com/VHSgunzo/sharun/releases/download/latest/sharun-$(uname -m)-aio -O ./sharun
+wget https://github.com/VHSgunzo/sharun/releases/latest/download/sharun-$(uname -m)-aio -O ./sharun
 chmod +x ./sharun
 
 # packing PyInstaller onedir app with strace mode into a single portable executable:
 ./sharun lib4bin --with-wrappe --with-hooks --strip ./dist/systemctl/systemctl -- --help
 
-# test it
+# test it:
 ./systemctl --help
 ```
 
