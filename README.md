@@ -102,14 +102,6 @@ cp ./target/$(uname -m)-unknown-linux-musl/release/sharun .
 # or specify them as an argument to 'sharun':
 ./test/sharun bash --version
 ```
-
-* You can create a hard link from `sharun` to `AppRun` and write the name of the executable file from the `bin` directory to the `.app` file for compatibility with [AppImage](https://appimage.org) `AppDir`. If the `.app` file does not exist, the `*.desktop` file will be used.
-
-* Additional env var can be specified in the `.env` file (see [dotenv](https://crates.io/crates/dotenv)). Env var can also be deleted using `unset ENV_VAR` in the end of the `.env` file.
-
-* You can preload libraries using `.preload` file. Specify the necessary libraries in it from a new line. You can use the full paths to libraries or only their names if they are located in `shared/{lib,lib32}/`
-This can be useful, for example, to use [ld-preload-open](https://github.com/fritzw/ld-preload-open) library to reassign paths.
-
 ### Packing the `sharun directory` with your applications into a single executable with [wrappe](https://github.com/Systemcluster/wrappe):
 ```
 # packing one executable file /bin/bash to the test/bash executable:
@@ -136,6 +128,32 @@ This can be useful, for example, to use [ld-preload-open](https://github.com/fri
 # packing python 3.13 and pygame package with examples.aliens entrypoint to the test/python executable in strace mode:
 ./sharun lib4bin --wrappe-exec python -m '-m pygame.examples.aliens' --strip --with-hooks --python-ver 3.13 --python-pkg pygame --dst-dir test sharun -- python -m pygame.examples.aliens
 ```
+
+### Packing the [PyInstaller](https://pyinstaller.org) `onedir` app into a single executable with [wrappe](https://github.com/Systemcluster/wrappe):
+```
+# download python script:
+wget https://raw.githubusercontent.com/gdraheim/docker-systemctl-replacement/refs/heads/master/files/docker/systemctl3.py
+
+# Create PyInstaller onedir app:
+pyinstaller --name systemctl --onedir systemctl3.py
+
+# download sharun aio:
+wget https://github.com/VHSgunzo/sharun/releases/download/latest/sharun-$(uname -m)-aio -O ./sharun
+chmod +x ./sharun
+
+# packing PyInstaller onedir app with strace mode into a single portable executable:
+./sharun lib4bin --with-wrappe --with-hooks --strip ./dist/systemctl/systemctl -- --help
+
+# test it
+./systemctl --help
+```
+
+* You can create a hard link from `sharun` to `AppRun` and write the name of the executable file from the `bin` directory to the `.app` file for compatibility with [AppImage](https://appimage.org) `AppDir`. If the `.app` file does not exist, the `*.desktop` file will be used.
+
+* Additional env var can be specified in the `.env` file (see [dotenv](https://crates.io/crates/dotenv)). Env var can also be deleted using `unset ENV_VAR` in the end of the `.env` file.
+
+* You can preload libraries using `.preload` file. Specify the necessary libraries in it from a new line. You can use the full paths to libraries or only their names if they are located in `shared/{lib,lib32}/`
+This can be useful, for example, to use [ld-preload-open](https://github.com/fritzw/ld-preload-open) library to reassign paths.
 
 ## Screenshots:
 ![tree](img/tree.png)
