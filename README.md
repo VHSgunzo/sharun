@@ -201,10 +201,12 @@ This can be useful, for example, to use [ld-preload-open](https://github.com/fri
 * [AppBundleHUB](https://github.com/xplshn/AppBundleHUB)
 * [AnyLinux-AppImages](https://github.com/pkgforge-dev/Anylinux-AppImages)
 * [RMG](https://github.com/Rosalie241/RMG)
-* [PrusaSlicer](https://github.com/probonopd/PrusaSlicer)
+* [PrusaSlicer.AppImage](https://github.com/probonopd/PrusaSlicer.AppImage)
 * [goverlay](https://github.com/benjamimgois/goverlay)
 * [ghostty-appimage](https://github.com/psadi/ghostty-appimage)
 * [WayVR Dashboard](https://github.com/olekolek1000/wayvr-dashboard)
+* [interstellar](https://github.com/jwr1/interstellar)
+* [LibreSprite](https://github.com/LibreSprite/LibreSprite)
 
 ## References
 * [userland-execve](https://crates.io/crates/userland-execve)
