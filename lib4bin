@@ -17,7 +17,15 @@ ONE_DIR=${ONE_DIR:=1}
 DST_DIR="${DST_DIR:=.}"
 TMPDIR="${TMPDIR:=/tmp}"
 CREATE_LINKS=${CREATE_LINKS:=1}
+
+[[ -z "$PYINSTALL_DIR" && -d "$HOME/.local/share/uv/python" ]] && \
+PYINSTALL_DIR="$HOME/.local/share/uv/python"
 PYINSTALL_DIR="${PYINSTALL_DIR:=$TMPDIR/pyinstall}"
+
+ARCH="$(uname -m)"
+GIT_SHARUN_RELEASE="https://github.com/VHSgunzo/sharun/releases/latest/download/sharun-${ARCH}"
+GIT_WRAPPE_RELEASE="https://github.com/VHSgunzo/wrappe/releases/latest/download/wrappe-${ARCH}"
+GIT_UV_RELEASE="https://github.com/astral-sh/uv/releases/latest/download/uv-${ARCH}-unknown-linux-musl.tar.gz"
 
 STRIP=${STRIP:=0}
 VERBOSE=${VERBOSE:=0}
@@ -36,10 +44,6 @@ ANY_EXECUTABLE=${ANY_EXECUTABLE:=0}
 WRAPPE_CLEANUP=${WRAPPE_CLEANUP:=1}
 MAX_INTERP_LEN=${MAX_INTERP_LEN:=256}
 PATCH_INTERPRETER=${PATCH_INTERPRETER:=0}
-
-GIT_SHARUN_RELEASES='https://github.com/VHSgunzo/sharun/releases'
-GIT_WRAPPE_RELEASES='https://github.com/VHSgunzo/wrappe/releases'
-GIT_UV_RELEASES='https://github.com/astral-sh/uv/releases'
 
 usage() {
     echo -e "[ Usage ]: lib4bin [OPTIONS] /path/executable -- [STRACE MODE EXEC ARGS]
@@ -167,7 +171,7 @@ ldd_libs() {
 get_libs() {
     unset libs libs4libs
     if [ "$STRACE_MODE" == 1 ] && ! is_so && \
-    ([[ ! -n "$STRACE_EXE" || "$STRACE_EXE" == "$1" ]]||\
+    ([[ -z "$STRACE_EXE" || "$STRACE_EXE" == "$1" ]]||\
     [[ "$STRACE_EXE" == 'sharun' && "$1" == "$dst_dir/sharun" && "$binary_name" == 'sharun' ]])
         then
             local libs_file="${TMPDIR}/libs.$$"
@@ -309,13 +313,8 @@ check_url_stat_code() {
     fi
 }
 
-get_git_url() {
-    echo "$1/download/$(NO_ARIA2C=1 try_dl "$1/latest" \
-    /dev/stdout 2>/dev/null|grep -Em1 "Release (v)?.*"|awk '{print$2}')"
-}
-
 is_url() {
-    [ ! -n "$1" ] && \
+    [ -z "$1" ] && \
         return 1
     if [ -n "$2" ]
         then [ "$(check_url_stat_code "$1")" == "$2" ]
@@ -475,7 +474,7 @@ if [ "$WITH_PYTHON" == 1 ]
     then
         ONE_DIR=1
         WITH_SHARUN=1
-        TMP_UV="${TMPDIR}/uv-$(uname -m)-unknown-linux-musl/uv"
+        TMP_UV="${TMPDIR}/uv-${ARCH}-unknown-linux-musl/uv"
         UV="${UV:="$(readlink -f "$(which_exe uv)")"}"
         UV="${UV:="$TMP_UV"}"
         if [ ! -x "$UV" ]
@@ -485,7 +484,7 @@ if [ "$WITH_PYTHON" == 1 ]
                         UV_URL="$UV"
                         UV="$TMP_UV"
                 fi
-                UV_URL="${UV_URL:=$(get_git_url "$GIT_UV_RELEASES")/uv-$(uname -m)-unknown-linux-musl.tar.gz}"
+                UV_URL="${UV_URL:=$GIT_UV_RELEASE}"
                 info_msg "Downloading uv -> '$UV'..."
                 info_msg "$UV_URL"
                 if NO_ARIA2C=1 try_dl "$UV_URL" '/dev/stdout'|tar -zxvf- -C "$TMPDIR"
@@ -523,7 +522,7 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                 PYTMP_DIR="$DST_DIR/pytmp-$$"
                 info_msg "$YELLOW[ PYTHON INSTALL ]: $BLUE[$PYINSTALL_DIR] ${GREEN}..."
                 "$UV" python install --install-dir "$PYINSTALL_DIR" $PYTHON_VER||exit 1
-                CPYTHON_VER="$(ls -r1 "$PYINSTALL_DIR"|grep -m1 "cpython-${PYTHON_VER}.*-linux-$(uname -m).*")"
+                CPYTHON_VER="$(ls -r1 "$PYINSTALL_DIR"|grep -m1 "cpython-${PYTHON_VER}.*-linux-${ARCH}.*")"
                 CPYTHON_DIR="$PYINSTALL_DIR/$CPYTHON_VER"
                 if [[ -n "$CPYTHON_VER" && -d "$CPYTHON_DIR" ]]
                     then
@@ -590,7 +589,7 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
         elif [ -n "$1" ]
             then BINARY_LIST+=("$@")
             else
-                if [ ! -n "$BINARY_LIST" ]
+                if [ -z "$BINARY_LIST" ]
                     then
                         error_msg "Specify the executable or shared object!\n"
                         usage
@@ -646,7 +645,7 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                         IS_ELF="$(grep -o 'ELF'<<<"$FILE_INFO")"
                         IS_STATIC="$(grep -o 'static'<<<"$FILE_INFO")"
                         IS_SCRIPT="$(grep -o 'script'<<<"$FILE_INFO")"
-                        IS_ELF32="$(grep -q 'ELF 32-bit'<<<"$FILE_INFO")"
+                        IS_ELF32="$(grep -o 'ELF 32-bit'<<<"$FILE_INFO")"
                         IS_SO="$(grep -o 'shared object'<<<"$FILE_INFO")"
                         IS_EXECUTABLE="$(grep -o 'executable'<<<"$FILE_INFO")"
                         IS_EXECUTABLE="${IS_EXECUTABLE:=$(([ -n "$IS_SO" ] && ! is_so) && echo executable)}"
@@ -665,7 +664,7 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                                 needed_libs="$(print_needed "$binary_src_pth")"
                                 LIBS="$(get_libs "$binary_src_pth" "$needed_libs")"
                                 is_so && LIBS="$(echo -e "$LIBS\n$binary"|sort -u|sed '/^$/d')"
-                                if [[ -n "$LIBS" && ! -n "$IS_SCRIPT" && ! -n "$IS_STATIC" ]]
+                                if [[ -n "$LIBS" && -z "$IS_SCRIPT" && -z "$IS_STATIC" ]]
                                     then
                                         INTERPRETER="$(basename "$(grep -Em1 'ld-(linux|musl).*\.so'<<<"$LIBS"|cut -d'=' -f1|sed 's|\t||')")"
                                         [[ "$create_links" == 1 && "$hard_links" == 1 && ! -x "${dst_dir}/sharun" ]] && \
@@ -681,7 +680,7 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                                             then
                                                 if [[ "$with_sharun" == 1 && ! -x "${dst_dir}/sharun" ]]
                                                     then
-                                                        TMP_SHARUN="${TMPDIR}/sharun-$(uname -m)$([ "$UPX_SHARUN" != 1 ]||echo -upx)"
+                                                        TMP_SHARUN="${TMPDIR}/sharun-${ARCH}$([ "$UPX_SHARUN" != 1 ]||echo -upx)"
                                                         SHARUN="${SHARUN:="$(readlink -f "$(which_exe sharun)")"}"
                                                         SHARUN="${SHARUN:="$TMP_SHARUN"}"
                                                         if [ ! -x "$SHARUN" ]
@@ -691,7 +690,7 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                                                                         SHARUN_URL="$SHARUN"
                                                                         SHARUN="$TMP_SHARUN"
                                                                 fi
-                                                                SHARUN_URL="${SHARUN_URL:=$(get_git_url "$GIT_SHARUN_RELEASES")/sharun-$(uname -m)$([ "$UPX_SHARUN" != 1 ]||echo -upx)}"
+                                                                SHARUN_URL="${SHARUN_URL:=${GIT_SHARUN_RELEASE}$([ "$UPX_SHARUN" != 1 ]||echo -upx)}"
                                                                 info_msg "Downloading sharun -> '$SHARUN'..."
                                                                 info_msg "$SHARUN_URL"
                                                                 if try_dl "$SHARUN_URL" "$SHARUN"
@@ -731,7 +730,7 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                                                         if [ -n "$IS_ELF" ]
                                                             then try_strip "$binary_dst_pth"
                                                         fi
-                                                        if [[ -n "$LIBS" && ! -n "$IS_SCRIPT" && ! -n "$IS_STATIC" ]]
+                                                        if [[ -n "$LIBS" && -z "$IS_SCRIPT" && -z "$IS_STATIC" ]]
                                                             then
                                                                 repath_needed_libs "$binary_dst_pth" "$needed_libs"
                                                                 try_remove_fullrpath "$binary_dst_pth"
@@ -1002,25 +1001,35 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                                                 LIBRARIES["$lib_src_pth"]=1
                                         fi
                                 done
-                                if [[ -n "$INTERPRETER" && "$patch_interpreter" == 1 && "${LIBRARIES["${INTERPRETER}_patched"]}" != 1 ]]
+                                if [[ -n "$INTERPRETER" && "${LIBRARIES["${INTERPRETER}_patched"]}" != 1 && \
+                                    "${LIBRARIES["${INTERPRETER}_sedpreload"]}" != 1 ]]
                                     then
-                                        if [ "$LIBS_ONLY" != 1 ] && ! is_so
-                                            then
-                                                (try_cd "$bin_dir_pth"
-                                                if [ -f "../$lib_dir/$INTERPRETER" ]
-                                                    then
-                                                        if [ -n "$IS_PYINSTELF" ]
-                                                            then new_interp="$(printf "%${MAX_INTERP_LEN}s"|tr ' ' "i")"
-                                                            else new_interp="../$lib_dir/$INTERPRETER"
-                                                        fi
-                                                        info_msg "$YELLOW[ SET INTERPRETER ]: $BLUE[$bin_dir_pth/$binary_name]"
-                                                        patchelf $pvarg --set-interpreter "$new_interp" "$binary_name"||exit 1
-                                                fi)||exit 1
-                                        fi
                                         interpreter_pth="${dst_dir}/shared/$lib_dir/$INTERPRETER"
-                                        info_msg "$YELLOW[ PATCH INTERPRETER ]: $BLUE[$interpreter_pth]"
-                                        sed -i 's|/usr|/xxx|g;s|/lib|/XXX|g;s|/etc|/EEE|g' "$interpreter_pth"||exit 1
-                                        LIBRARIES["${INTERPRETER}_patched"]=1
+                                        if [[ "$patch_interpreter" == 1 && "${LIBRARIES["${INTERPRETER}_patched"]}" != 1 ]]
+                                            then
+                                                if [ "$LIBS_ONLY" != 1 ] && ! is_so
+                                                    then
+                                                        (try_cd "$bin_dir_pth"
+                                                        if [ -f "../$lib_dir/$INTERPRETER" ]
+                                                            then
+                                                                if [ -n "$IS_PYINSTELF" ]
+                                                                    then new_interp="$(printf "%${MAX_INTERP_LEN}s"|tr ' ' "i")"
+                                                                    else new_interp="../$lib_dir/$INTERPRETER"
+                                                                fi
+                                                                info_msg "$YELLOW[ SET INTERPRETER ]: $BLUE[$bin_dir_pth/$binary_name]"
+                                                                patchelf $pvarg --set-interpreter "$new_interp" "$binary_name"||exit 1
+                                                        fi)||exit 1
+                                                fi
+                                                info_msg "$YELLOW[ PATCH INTERPRETER ]: $BLUE[$interpreter_pth]"
+                                                sed -i 's|/usr|/XXX|g;s|/lib|/XXX|g;s|/etc|/XXX|g' "$interpreter_pth"||exit 1
+                                                LIBRARIES["${INTERPRETER}_patched"]=1
+                                        fi
+                                        if [[ "${LIBRARIES["${INTERPRETER}_sedpreload"]}" != 1 ]]
+                                            then
+                                                info_msg "$YELLOW[ REMOVE INTERPRETER PRELOAD ]: $BLUE[$interpreter_pth]"
+                                                sed -i 's|/etc/ld.so.preload|/XXX/ld.so.preload|g' "$interpreter_pth"||exit 1
+                                                LIBRARIES["${INTERPRETER}_sedpreload"]=1
+                                        fi
                                 fi
                                 info_msg "[ DONE ]"
                                 binary_number=$(( $binary_number + 1 ))
@@ -1046,7 +1055,7 @@ fi
 
 if [ "$WITH_WRAPPE" == 1 ]
     then
-        TMP_WRAPPE="${TMPDIR}/wrappe-$(uname -m)"
+        TMP_WRAPPE="${TMPDIR}/wrappe-${ARCH}"
         WRAPPE="${WRAPPE:="$(readlink -f "$(which_exe wrappe)")"}"
         WRAPPE="${WRAPPE:="$TMP_WRAPPE"}"
         if [ ! -x "$WRAPPE" ]
@@ -1056,7 +1065,7 @@ if [ "$WITH_WRAPPE" == 1 ]
                         WRAPPE_URL="$WRAPPE"
                         WRAPPE="$TMP_WRAPPE"
                 fi
-                WRAPPE_URL="${WRAPPE_URL:=$(get_git_url "$GIT_WRAPPE_RELEASES")/wrappe-$(uname -m)}"
+                WRAPPE_URL="${WRAPPE_URL:=$GIT_WRAPPE_RELEASE}"
                 info_msg "Downloading wrappe -> '$WRAPPE'..."
                 info_msg "$WRAPPE_URL"
                 if try_dl "$WRAPPE_URL" "$WRAPPE"

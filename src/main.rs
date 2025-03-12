@@ -97,25 +97,34 @@ fn is_exe(path: &PathBuf) -> bool {
     false
 }
 
-fn is_elf32(elf_bytes: &[u8]) -> Result<bool> {
+fn is_elf32(path: &String) -> Result<bool> {
+    let mut file = File::open(path)?;
+    let mut elf_bytes = [0; 5];
+    file.read_exact(&mut elf_bytes)?;
     if &elf_bytes[0..4] != b"\x7fELF" {
         return Ok(false)
     }
     Ok(elf_bytes[4] == 1)
 }
 
-fn get_elf(path: &String) -> Result<Vec<u8>> {
+fn get_elf(path: &String, is_elf32: bool) -> Result<Vec<u8>> {
     let mut file = File::open(path)?;
-    let mut elf_header_raw = [0; 64];
-    file.read_exact(&mut elf_header_raw)?;
-    let section_table_offset = u64::from_le_bytes(elf_header_raw[40..48].try_into().unwrap()); // e_shoff
-    let section_count = u16::from_le_bytes(elf_header_raw[60..62].try_into().unwrap()); // e_shnum
-    let section_table_size = section_count as u64 * 64;
-    let required_bytes = section_table_offset + section_table_size;
-    let mut headers_bytes = vec![0; required_bytes as usize];
-    file.seek(SeekFrom::Start(0))?;
-    file.read_exact(&mut headers_bytes)?;
-    Ok(headers_bytes.clone())
+    if is_elf32 {
+        let mut headers_bytes = Vec::new();
+        file.read_to_end(&mut headers_bytes)?;
+        Ok(headers_bytes.clone())
+    } else {
+        let mut elf_header_raw = [0; 64];
+        file.read_exact(&mut elf_header_raw)?;
+        let section_table_offset = u64::from_le_bytes(elf_header_raw[40..48].try_into().unwrap()); // e_shoff
+        let section_count = u16::from_le_bytes(elf_header_raw[60..62].try_into().unwrap()); // e_shnum
+        let section_table_size = section_count as u64 * 64;
+        let required_bytes = section_table_offset + section_table_size;
+        let mut headers_bytes = vec![0; required_bytes as usize];
+        file.seek(SeekFrom::Start(0))?;
+        file.read_exact(&mut headers_bytes)?;
+        Ok(headers_bytes.clone())
+    }
 }
 
 fn is_elf_section(elf_bytes: &[u8], section_name: &str) -> Result<bool> {
@@ -206,6 +215,7 @@ fn read_dotenv(dotenv_dir: &str) -> Vec<String> {
 
 fn gen_library_path(library_path: &str, lib_path_file: &String) {
     let mut new_paths: Vec<String> = Vec::new();
+    let skip_dirs = ["lib-dynload".to_string()];
     WalkDir::new(library_path)
         .into_iter()
         .filter_map(|entry| entry.ok())
@@ -215,7 +225,8 @@ fn gen_library_path(library_path: &str, lib_path_file: &String) {
                 if let Some(parent) = entry.path().parent() {
                     if let Some(parent_str) = parent.to_str() {
                         if parent_str != library_path && parent.is_dir() &&
-                            !new_paths.contains(&parent_str.into()) {
+                            !new_paths.contains(&parent_str.into()) &&
+                            !skip_dirs.contains(&basename(parent_str)) {
                             new_paths.push(parent_str.into());
                         }
                     }
@@ -251,6 +262,7 @@ fn print_usage() {
 
 [ Environments ]:
     SHARUN_WORKING_DIR=/path    Specifies the path to the working directory
+    SHARUN_ALLOW_BROKEN=1       Enables breaking behavior (LD_PRELOAD, etc)
     SHARUN_LDNAME=ld.so         Specifies the name of the interpreter
     SHARUN_DIR                  Sharun directory",
     env!("CARGO_PKG_DESCRIPTION"));
@@ -428,13 +440,13 @@ fn main() {
     }
     let bin = format!("{shared_bin}/{bin_name}");
 
-    let elf_bytes = get_elf(&bin).unwrap_or_else(|err|{
-        eprintln!("Failed to read ELF: {}: {err}", &bin);
+    let is_elf32_bin = is_elf32(&bin).unwrap_or_else(|err|{
+        eprintln!("Failed to check ELF class: {bin}: {err}");
         exit(1)
     });
 
-    let is_elf32_bin = is_elf32(&elf_bytes).unwrap_or_else(|err|{
-        eprintln!("Failed to check ELF class: {bin}: {err}");
+    let elf_bytes = get_elf(&bin, is_elf32_bin).unwrap_or_else(|err|{
+        eprintln!("Failed to read ELF: {}: {err}", &bin);
         exit(1)
     });
 
@@ -445,6 +457,11 @@ fn main() {
     };
 
     let unset_envs = read_dotenv(&sharun_dir);
+
+    if get_env_var("SHARUN_ALLOW_BROKEN") != "1" {
+        env::remove_var("LD_PRELOAD")
+    }
+    env::remove_var("SHARUN_ALLOW_BROKEN");
 
     let interpreter = get_interpreter(&library_path).unwrap_or_else(|_|{
         eprintln!("Interpreter not found!");
@@ -672,15 +689,15 @@ fn main() {
     let is_pyinstaller_dir = Path::new(&shared_bin).join("_internal").exists();
 
     let mut interpreter_args: Vec<CString> = Vec::new();
-    if !is_pyinstaller_elf || is_pyinstaller_dir {
+    if !is_pyinstaller_elf || is_pyinstaller_dir || is_elf32_bin {
         interpreter_args.append(&mut vec![
             CString::from_str(&interpreter.to_string_lossy()).unwrap(),
             CString::new("--library-path").unwrap(),
             CString::new(&*library_path).unwrap(),
             CString::new("--argv0").unwrap()
-        ]);        
+        ]);
 
-        if is_pyinstaller_elf {
+        if is_pyinstaller_elf || is_elf32_bin {
             interpreter_args.push(CString::new(&*bin).unwrap())
         } else {
             interpreter_args.push(CString::new(arg0_path.to_str().unwrap()).unwrap())
@@ -694,7 +711,7 @@ fn main() {
             });
             let mut preload: Vec<String> = vec![];
             for string in data.trim().split("\n") {
-                preload.push(string.trim().into());            
+                preload.push(string.trim().into());
             }
             if !preload.is_empty() {
                 interpreter_args.append(&mut vec![
@@ -710,13 +727,13 @@ fn main() {
         }
     }
 
-    if is_pyinstaller_elf {
-        if is_pyinstaller_dir {
+    if is_pyinstaller_elf || is_elf32_bin {
+        let err: Error;
+        if is_pyinstaller_dir || is_elf32_bin {
             drop(elf_bytes);
             let interpreter_args: Vec<String> = interpreter_args.iter()
                 .map(|s| s.clone().into_string().unwrap()).skip(1).collect();
-    
-            let _ = Command::new(interpreter)
+            err = Command::new(interpreter)
                 .args(interpreter_args)
                 .envs(env::vars())
                 .exec();
@@ -726,12 +743,13 @@ fn main() {
                     eprintln!("Failed to set ELF interpreter: {}: {err}", &bin);
                     exit(1)
             });
-    
-            let _ = Command::new(bin)
+            err = Command::new(&bin)
                 .args(exec_args)
                 .envs(env::vars())
                 .exec();
         }
+        eprint!("Failed to exec: {bin}: {err}");
+        exit(1)
     } else {
         drop(elf_bytes);
         let envs: Vec<CString> = env::vars()
