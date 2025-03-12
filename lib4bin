@@ -1001,8 +1001,7 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                                                 LIBRARIES["$lib_src_pth"]=1
                                         fi
                                 done
-                                if [[ -n "$INTERPRETER" && "${LIBRARIES["${INTERPRETER}_patched"]}" != 1 && \
-                                    "${LIBRARIES["${INTERPRETER}_sedpreload"]}" != 1 ]]
+                                if [ -n "$INTERPRETER" ]
                                     then
                                         interpreter_pth="${dst_dir}/shared/$lib_dir/$INTERPRETER"
                                         if [[ "$patch_interpreter" == 1 && "${LIBRARIES["${INTERPRETER}_patched"]}" != 1 ]]
