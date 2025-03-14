@@ -45,7 +45,8 @@ cp ./target/$(uname -m)-unknown-linux-musl/release/sharun .
 
 [ Environments ]:
     SHARUN_WORKING_DIR=/path    Specifies the path to the working directory
-    SHARUN_ALLOW_BROKEN=1       Enables breaking behavior (LD_PRELOAD, etc)
+    SHARUN_ALLOW_SYS_VKICD=1    Enables breaking system vulkan/icd.d for vulkan loader
+    SHARUN_ALLOW_LD_PRELOAD=1   Enables breaking LD_PRELOAD env variable
     SHARUN_LDNAME=ld.so         Specifies the name of the interpreter
     SHARUN_DIR                  Sharun directory
 ```

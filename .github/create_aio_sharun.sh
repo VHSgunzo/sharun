@@ -3,11 +3,11 @@ set -e
 
 ARCH="$(uname -m)"
 
-apk add bash file binutils patchelf findutils grep sed coreutils strace which wget
+apk add bash file binutils patchelf findutils grep sed coreutils strace which wget tar gzip
 
-BINS="bash patchelf strip strace find file grep sed awk \
-xargs kill rm cp ln mv sleep echo readlink chmod sort \
-cut mkdir basename dirname uname wget"
+BINS="bash patchelf strip strace find file grep sed awk md5sum \
+xargs kill rm cp ln mv sleep echo readlink chmod sort tr printenv \
+cut mkdir basename dirname uname wget tail date tar gzip ls"
 
 BINS_PATHS=
 for bin in $BINS
