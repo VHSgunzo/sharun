@@ -213,6 +213,15 @@ fn read_dotenv(dotenv_dir: &str) -> Vec<String> {
     unset_envs
 }
 
+fn add_to_xdg_data_env(xdg_data_dirs: &str, env: &str, path: &str) {
+    for xdg_data_dir in xdg_data_dirs.rsplit(":") {
+        let env_data_dir = Path::new(xdg_data_dir).join(path);
+        if env_data_dir.exists() {
+            add_to_env(env, env_data_dir)
+        }
+    }
+}
+
 fn gen_library_path(library_path: &str, lib_path_file: &String) {
     let mut new_paths: Vec<String> = Vec::new();
     let skip_dirs = ["lib-dynload".to_string()];
@@ -262,7 +271,8 @@ fn print_usage() {
 
 [ Environments ]:
     SHARUN_WORKING_DIR=/path    Specifies the path to the working directory
-    SHARUN_ALLOW_BROKEN=1       Enables breaking behavior (LD_PRELOAD, etc)
+    SHARUN_ALLOW_SYS_VKICD=1    Enables breaking system vulkan/icd.d for vulkan loader
+    SHARUN_ALLOW_LD_PRELOAD=1   Enables breaking LD_PRELOAD env variable
     SHARUN_LDNAME=ld.so         Specifies the name of the interpreter
     SHARUN_DIR                  Sharun directory",
     env!("CARGO_PKG_DESCRIPTION"));
@@ -360,7 +370,8 @@ fn main() {
                     let bin_path = PathBuf::from(bin_dir).join(&bin_name);
                     if is_exe(&bin_path) &&
                         (is_hardlink(&sharun, &bin_path) ||
-                        !Path::new(&shared_bin).join(&bin_name).exists())
+                        !Path::new(&shared_bin).join(&bin_name).exists() ||
+                        bin_path.canonicalize().unwrap() != sharun.canonicalize().unwrap())
                     {
                         add_to_env("PATH", bin_dir);
                         let err = Command::new(&bin_path)
@@ -458,10 +469,10 @@ fn main() {
 
     let unset_envs = read_dotenv(&sharun_dir);
 
-    if get_env_var("SHARUN_ALLOW_BROKEN") != "1" {
+    if get_env_var("SHARUN_ALLOW_LD_PRELOAD") != "1" {
         env::remove_var("LD_PRELOAD")
     }
-    env::remove_var("SHARUN_ALLOW_BROKEN");
+    env::remove_var("SHARUN_ALLOW_LD_PRELOAD");
 
     let interpreter = get_interpreter(&library_path).unwrap_or_else(|_|{
         eprintln!("Interpreter not found!");
@@ -594,54 +605,72 @@ fn main() {
             .replace("+", &library_path)
     }
 
+    let ld_library_path_env = &get_env_var("LD_LIBRARY_PATH");
+    if !ld_library_path_env.is_empty() {
+        library_path += &format!(":{ld_library_path_env}")
+    }
+
     let share_dir = PathBuf::from(format!("{sharun_dir}/share"));
     if share_dir.exists() {
         if let Ok(dir) = share_dir.read_dir() {
             add_to_env("XDG_DATA_DIRS", "/usr/local/share");
             add_to_env("XDG_DATA_DIRS", "/usr/share");
+            add_to_env("XDG_DATA_DIRS", format!("{}/.local/share", get_env_var("HOME")));
             add_to_env("XDG_DATA_DIRS", &share_dir);
+            let xdg_data_dirs = &get_env_var("XDG_DATA_DIRS");
             for entry in dir.flatten() {
                 let entry_path = entry.path();
                 if entry_path.is_dir() {
                     let name = entry.file_name();
                     match name.to_str().unwrap() {
-                        "glvnd" =>  {
-                            let egl_vendor = &entry_path.join("egl_vendor.d");
-                            if egl_vendor.exists() {
-                                add_to_env("__EGL_VENDOR_LIBRARY_DIRS", "/usr/share/glvnd/egl_vendor.d");
-                                add_to_env("__EGL_VENDOR_LIBRARY_DIRS", egl_vendor)
+                        "glvnd" => {
+                            add_to_xdg_data_env(xdg_data_dirs,
+                                "__EGL_VENDOR_LIBRARY_DIRS", "glvnd/egl_vendor.d")
+                        }
+                        "vulkan" => {
+                            let vk_dir = "vulkan/icd.d";
+                            let vk_env = "VK_DRIVER_FILES";
+                            if get_env_var("SHARUN_ALLOW_SYS_VKICD") == "1" {
+                                env::remove_var("SHARUN_ALLOW_SYS_VKICD");
+                                add_to_xdg_data_env(xdg_data_dirs, vk_env, vk_dir)
+                            } else {
+                                for xdg_data_dir in xdg_data_dirs.rsplit(":") {
+                                    let vk_icd_dir = Path::new(xdg_data_dir).join(vk_dir);
+                                    if vk_icd_dir.exists() {
+                                        if xdg_data_dir.starts_with(share_dir.to_str().unwrap()) {
+                                            add_to_env(vk_env, vk_icd_dir);
+                                        } else if let Ok(dir) = vk_icd_dir.read_dir() {
+                                            for entry in dir.flatten() {
+                                                if entry.file_type().unwrap().is_file() &&
+                                                    entry.file_name().to_string_lossy().contains("nvidia") {
+                                                    add_to_env(vk_env, entry.path())
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
-                        "vulkan" =>  {
-                            let icd = &entry_path.join("icd.d");
-                            if icd.exists() {
-                                add_to_env("VK_DRIVER_FILES", "/usr/share/vulkan/icd.d");
-                                add_to_env("VK_DRIVER_FILES", icd)
-                            }
-                        }
-                        "X11" =>  {
+                        "X11" => {
                             let xkb = &entry_path.join("xkb");
                             if xkb.exists() {
                                 env::set_var("XKB_CONFIG_ROOT", xkb)
                             }
                         }
-                        "glib-2.0" =>  {
-                            let schemas = &entry_path.join("schemas");
-                            if schemas.exists() {
-                                add_to_env("GSETTINGS_SCHEMA_DIR", "/usr/share/glib-2.0/schemas");
-                                add_to_env("GSETTINGS_SCHEMA_DIR", schemas)
-                            }
+                        "glib-2.0" => {
+                            add_to_xdg_data_env(xdg_data_dirs,
+                                "GSETTINGS_SCHEMA_DIR", "glib-2.0/schemas")
                         }
-                        "gimp" =>  {
+                        "gimp" => {
                             let gimp2_datadir = &entry_path.join("2.0");
                             if gimp2_datadir.exists() {
                                 env::set_var("GIMP2_DATADIR",gimp2_datadir)
                             }
                         }
-                        "terminfo" =>  {
+                        "terminfo" => {
                             env::set_var("TERMINFO",entry_path)
                         }
-                        "file" =>  {
+                        "file" => {
                             let magic_file = &entry_path.join("misc/magic.mgc");
                             if magic_file.exists() {
                                 env::set_var("MAGIC", magic_file)
@@ -728,26 +757,25 @@ fn main() {
     }
 
     if is_pyinstaller_elf || is_elf32_bin {
-        let err: Error;
-        if is_pyinstaller_dir || is_elf32_bin {
+        let err = if is_pyinstaller_dir || (!is_pyinstaller_elf && is_elf32_bin) {
             drop(elf_bytes);
             let interpreter_args: Vec<String> = interpreter_args.iter()
                 .map(|s| s.clone().into_string().unwrap()).skip(1).collect();
-            err = Command::new(interpreter)
+            Command::new(interpreter)
                 .args(interpreter_args)
                 .envs(env::vars())
-                .exec();
+                .exec()
         } else {
             set_interp(elf_bytes, &bin, interpreter.to_str().unwrap())
                 .unwrap_or_else(|err|{
                     eprintln!("Failed to set ELF interpreter: {}: {err}", &bin);
                     exit(1)
             });
-            err = Command::new(&bin)
+            Command::new(&bin)
                 .args(exec_args)
                 .envs(env::vars())
-                .exec();
-        }
+                .exec()
+        };
         eprint!("Failed to exec: {bin}: {err}");
         exit(1)
     } else {

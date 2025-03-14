@@ -1022,8 +1022,7 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                                                 info_msg "$YELLOW[ PATCH INTERPRETER ]: $BLUE[$interpreter_pth]"
                                                 sed -i 's|/usr|/XXX|g;s|/lib|/XXX|g;s|/etc|/XXX|g' "$interpreter_pth"||exit 1
                                                 LIBRARIES["${INTERPRETER}_patched"]=1
-                                        fi
-                                        if [[ "${LIBRARIES["${INTERPRETER}_sedpreload"]}" != 1 ]]
+                                        elif [[ "${LIBRARIES["${INTERPRETER}_sedpreload"]}" != 1 ]]
                                             then
                                                 info_msg "$YELLOW[ REMOVE INTERPRETER PRELOAD ]: $BLUE[$interpreter_pth]"
                                                 sed -i 's|/etc/ld.so.preload|/XXX/ld.so.preload|g' "$interpreter_pth"||exit 1
