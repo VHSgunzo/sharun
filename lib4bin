@@ -533,10 +533,14 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                         rm -rf "$PYTMP_DIR"/{.lock,share} "$PYTMP_DIR/lib"/!(pkgconfig|*python*) "${PY_UNNEEDED_LIST[@]}"
                         if [ -n "$PYTHON_PKG" ]
                             then
+                                PYTHON_PKGS=(pip setuptools wheel)
                                 info_msg "$YELLOW[ PIP INSTALL ]: $BLUE[$PYTHON_PKG -> $PYTMP_DIR] ${GREEN}..."
+                                PYTHON_PKG_NAME="$(basename "$PYTHON_PKG")"
+                                [[ -f "$PYTHON_PKG" && "${PYTHON_PKG_NAME,,}" == 'requirements.txt' ]] && \
+                                    PYTHON_PKGS+=(-r "$PYTHON_PKG")||PYTHON_PKGS+=("$PYTHON_PKG")
                                 "$UV" pip install --prefix "$PYTMP_DIR" --compile-bytecode --refresh --upgrade \
                                     --python "$PYTMP_DIR/bin/python" --link-mode=copy --prerelease=allow \
-                                    pip setuptools wheel "$PYTHON_PKG"||exit 1
+                                    "${PYTHON_PKGS[@]}"||exit 1
                                 find_py_unneeded "$PYTMP_DIR/"
                                 PY_UNINSTALL_LIST=()
                                 if [ "$PYTHON_LEAVE_PIP" != 1 ]
