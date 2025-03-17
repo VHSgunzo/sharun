@@ -7,10 +7,9 @@ use std::{
     process::{Command, Stdio, exit},
     fs::{File, write, read_to_string},
     os::unix::{fs::{MetadataExt, PermissionsExt}, process::CommandExt},
-    io::{Seek, Read, Result, Error, Write, SeekFrom, ErrorKind::InvalidData}
+    io::{Seek, Read, Result, Error, Write, SeekFrom, BufRead, BufReader, ErrorKind::{InvalidData, NotFound}}
 };
 
-use which::which;
 use walkdir::WalkDir;
 use flate2::read::DeflateDecoder;
 use nix::unistd::{AccessFlags, access};
@@ -97,6 +96,85 @@ fn is_exe(path: &PathBuf) -> bool {
     false
 }
 
+fn which(executable: &str) -> Option<PathBuf> {
+    if let Ok(path) = env::var("PATH") {
+        for dir in path.split(':') {
+            let full_path = Path::new(dir).join(executable);
+            if full_path.exists() && is_exe(&full_path) {
+                return Some(full_path)
+            }
+        }
+    }
+    None
+}
+
+fn is_script(path: &PathBuf) -> Result<bool> {
+    let mut file = File::open(path)?;
+    let mut buffer = [0; 2];
+    file.read_exact(&mut buffer)?;
+    Ok(&buffer[0..2] == b"#!")
+}
+
+fn read_first_line(path: &PathBuf) -> Result<String> {
+    let file = File::open(path)?;
+    let mut reader = BufReader::new(file);
+    let mut line = String::new();
+    reader.read_line(&mut line)?;
+    Ok(line)
+}
+
+fn exec_script(path: &PathBuf, exec_args: &[String]) -> Result<()> {
+    let first_line = read_first_line(path)?;
+    if !first_line.starts_with("#!") {
+        return Err(Error::new(NotFound, "Script does not have a valid shebang!"))
+    }
+    let shebang = first_line[2..].trim();
+    let parts: Vec<&str> = shebang.split_whitespace().collect();
+    if parts.is_empty() {
+        return Err(Error::new(NotFound, "Invalid shebang: no interpreter specified!"))
+    }
+    let interpreter_path = parts[0];
+    let mut command = if interpreter_path.ends_with("/env") {
+        if parts.len() < 2 {
+            return Err(Error::new(NotFound, "No interpreter specified after env!"))
+        }
+        let interpreter = parts[1];
+        let interpreter_path = match which(interpreter) {
+            Some(path) => path,
+            None => return Err(Error::new(NotFound,
+                format!("Interpreter '{interpreter}' not found in PATH"))
+            )
+        };
+        let mut command = Command::new(&interpreter_path);
+        for arg in &parts[2..] {
+            command.arg(arg);
+        }
+        command
+    } else {
+        let interpreter_name = Path::new(interpreter_path)
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
+        let interpreter_path = match which(&interpreter_name) {
+            Some(path) => path,
+            None => PathBuf::from(interpreter_path)
+        };
+        if !interpreter_path.exists() {
+            return Err(Error::new(NotFound,
+                format!("Interpreter '{}' not found", interpreter_path.display()))
+            )
+        }
+        let mut command = Command::new(&interpreter_path);
+        for arg in &parts[1..] {
+            command.arg(arg);
+        }
+        command
+    };
+    let err = command.arg(path).args(exec_args).exec();
+    Err(Error::new(InvalidData, err))
+}
+
 fn is_elf32(path: &String) -> Result<bool> {
     let mut file = File::open(path)?;
     let mut elf_bytes = [0; 5];
@@ -150,7 +228,7 @@ fn write_file(elf_path: &String, bytes: &[u8]) -> Result<bool> {
 
 fn set_interp(mut elf_bytes: Vec<u8>, elf_path: &String, new_interp: &str) -> Result<bool> {
     let elf = Elf::parse(&elf_bytes)
-        .map_err(|e| Error::new(InvalidData, e))?;
+        .map_err(|err| Error::new(InvalidData, err))?;
     let interp_header = elf.program_headers.iter().find(|header| header.p_type == PT_INTERP);
     match interp_header {
         Some(header) => {
@@ -298,10 +376,10 @@ fn main() {
     let shared_lib32 = format!("{shared_dir}/lib32");
 
     let arg0 = PathBuf::from(exec_args.remove(0));
-    let arg0_name = arg0.file_name().unwrap();
+    let arg0_name = arg0.file_name().unwrap().to_str().unwrap();
     let arg0_dir = PathBuf::from(dirname(arg0.to_str().unwrap())).canonicalize()
         .unwrap_or_else(|_|{
-            if let Ok(which_arg0) = which(arg0_name) {
+            if let Some(which_arg0) = which(arg0_name) {
                 which_arg0.parent().unwrap().to_path_buf()
             } else {
                 eprintln!("Failed to find ARG0 dir!");
@@ -311,7 +389,7 @@ fn main() {
     let arg0_path = arg0_dir.join(arg0_name);
 
     let mut bin_name = if arg0_path.is_symlink() && arg0_path.canonicalize().unwrap() == sharun {
-        arg0_name.to_str().unwrap().into()
+        arg0_name.into()
     } else {
         basename(sharun.file_name().unwrap().to_str().unwrap())
     };
@@ -374,12 +452,26 @@ fn main() {
                         bin_path.canonicalize().unwrap() != sharun.canonicalize().unwrap())
                     {
                         add_to_env("PATH", bin_dir);
-                        let err = Command::new(&bin_path)
-                            .envs(env::vars())
-                            .args(exec_args)
-                            .exec();
-                        eprintln!("Failed to run: {}: {err}", bin_path.display());
-                        exit(1)
+                        match is_script(&bin_path) {
+                            Ok(true) => {
+                                if let Err(err) = exec_script(&bin_path, &exec_args) {
+                                    eprintln!("Error executing script: {err}");
+                                    exit(1);
+                                }
+                            }
+                            Ok(false) => {
+                                let err = Command::new(&bin_path)
+                                    .envs(env::vars())
+                                    .args(exec_args)
+                                    .exec();
+                                eprintln!("Error executing file {:?}: {err}", &bin_path);
+                                exit(1)
+                            }
+                            Err(err) => {
+                                eprintln!("Error reading file {:?}: {err}", &bin_path);
+                                exit(1)
+                            }
+                        }
                     }
                 }
             }
