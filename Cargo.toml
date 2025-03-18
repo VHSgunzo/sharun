@@ -1,6 +1,6 @@
 [package]
 name = "sharun"
-version = "0.4.9"
+version = "0.5.1"
 readme = "README.md"
 license = "MIT"
 repository = "https://github.com/VHSgunzo/sharun"
