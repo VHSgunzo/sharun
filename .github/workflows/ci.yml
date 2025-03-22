@@ -36,12 +36,16 @@ jobs:
           cargo clean
           cargo build --release
           mv target/x86_64-unknown-linux-musl/release/sharun sharun-x86_64
+          cargo build --release --no-default-features
+          mv target/x86_64-unknown-linux-musl/release/sharun sharun-x86_64-lite
 
       - name: Build aarch64
         run: |
           cargo clean
           cross build --release --target aarch64-unknown-linux-musl
           mv target/aarch64-unknown-linux-musl/release/sharun sharun-aarch64
+          cargo build --release --target aarch64-unknown-linux-musl --no-default-features
+          mv target/aarch64-unknown-linux-musl/release/sharun sharun-aarch64-lite
 
       # https://github.com/aunali1/super-strip
       - name: Strip

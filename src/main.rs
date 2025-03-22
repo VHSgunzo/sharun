@@ -1,20 +1,18 @@
 use std::{
     env, fs,
     str::FromStr,
-    collections::HashSet,
     path::{Path, PathBuf},
     ffi::{CString, OsStr},
-    process::{Command, Stdio, exit},
+    process::{Command, exit},
     fs::{File, write, read_to_string},
     os::unix::{fs::{MetadataExt, PermissionsExt}, process::CommandExt},
-    io::{Seek, Read, Result, Error, Write, SeekFrom, BufRead, BufReader, ErrorKind::{InvalidData, NotFound}}
+    io::{Read, Result, Error, Write, BufRead, BufReader, ErrorKind::{InvalidData, NotFound}}
 };
 
+use cfg_if::cfg_if;
 use walkdir::WalkDir;
-use flate2::read::DeflateDecoder;
-use nix::unistd::{AccessFlags, access};
+use nix::unistd::{access, AccessFlags};
 use goblin::elf::{Elf, program_header::PT_INTERP};
-use include_file_compress::include_file_compress_deflate;
 
 
 const SHARUN_NAME: &str = env!("CARGO_PKG_NAME");
@@ -175,6 +173,7 @@ fn exec_script(path: &PathBuf, exec_args: &[String]) -> Result<()> {
     Err(Error::new(InvalidData, err))
 }
 
+#[cfg(feature = "elf32")]
 fn is_elf32(path: &String) -> Result<bool> {
     let mut file = File::open(path)?;
     let mut elf_bytes = [0; 5];
@@ -185,6 +184,7 @@ fn is_elf32(path: &String) -> Result<bool> {
     Ok(elf_bytes[4] == 1)
 }
 
+#[cfg(feature = "pyinstaller")]
 fn get_elf(path: &String, is_elf32: bool) -> Result<Vec<u8>> {
     let mut file = File::open(path)?;
     if is_elf32 {
@@ -199,12 +199,13 @@ fn get_elf(path: &String, is_elf32: bool) -> Result<Vec<u8>> {
         let section_table_size = section_count as u64 * 64;
         let required_bytes = section_table_offset + section_table_size;
         let mut headers_bytes = vec![0; required_bytes as usize];
-        file.seek(SeekFrom::Start(0))?;
+        std::io::Seek::seek(&mut file, std::io::SeekFrom::Start(0))?;
         file.read_exact(&mut headers_bytes)?;
         Ok(headers_bytes.clone())
     }
 }
 
+#[cfg(feature = "pyinstaller")]
 fn is_elf_section(elf_bytes: &[u8], section_name: &str) -> Result<bool> {
     if let Ok(elf) = Elf::parse(elf_bytes) {
         if let Some(section_headers) = elf.section_headers.as_slice().get(..) {
@@ -243,9 +244,7 @@ fn set_interp(mut elf_bytes: Vec<u8>, elf_path: &String, new_interp: &str) -> Re
             }
             let new_interp_bytes = new_interp.as_bytes();
             interp_slice[..new_interp_bytes.len()].copy_from_slice(new_interp_bytes);
-            for i in new_interp_bytes.len()..((header.p_filesz as usize) - 1) {
-                interp_slice[i] = 0;
-            }
+            for byte in interp_slice.iter_mut().take((header.p_filesz as usize) - 1).skip(new_interp_bytes.len()) { *byte = 0 }
             interp_slice[(header.p_filesz as usize) - 1] = 0;
             write_file(elf_path, &elf_bytes)?;
         }
@@ -291,6 +290,7 @@ fn read_dotenv(dotenv_dir: &str) -> Vec<String> {
     unset_envs
 }
 
+#[cfg(feature = "setenv")]
 fn add_to_xdg_data_env(xdg_data_dirs: &str, env: &str, path: &str) {
     for xdg_data_dir in xdg_data_dirs.rsplit(":") {
         let env_data_dir = Path::new(xdg_data_dir).join(path);
@@ -335,15 +335,18 @@ fn gen_library_path(library_path: &str, lib_path_file: &String) {
 fn print_usage() {
     println!("[ {} ]
 
-[ Usage ]: {SHARUN_NAME} [OPTIONS] [EXEC ARGS]...
-    Use lib4bin for create 'bin' and 'shared' dirs
-
+[ Usage ]: {SHARUN_NAME} [OPTIONS] [EXEC ARGS]...",
+    env!("CARGO_PKG_DESCRIPTION"));
+    #[cfg(feature = "lib4bin")]
+    println!("     Use lib4bin for create 'bin' and 'shared' dirs");
+    println!("
 [ Arguments ]:
     [EXEC ARGS]...              Command line arguments for execution
 
-[ Options ]:
-     l,  lib4bin [ARGS]         Launch the built-in lib4bin
-    -g,  --gen-lib-path         Generate a lib.path file
+[ Options ]:");
+    #[cfg(feature = "lib4bin")]
+    println!("     l,  lib4bin [ARGS]         Launch the built-in lib4bin");
+    println!("    -g,  --gen-lib-path         Generate a lib.path file
     -v,  --version              Print version
     -h,  --help                 Print help
 
@@ -352,8 +355,7 @@ fn print_usage() {
     SHARUN_ALLOW_SYS_VKICD=1    Enables breaking system vulkan/icd.d for vulkan loader
     SHARUN_ALLOW_LD_PRELOAD=1   Enables breaking LD_PRELOAD env variable
     SHARUN_LDNAME=ld.so         Specifies the name of the interpreter
-    SHARUN_DIR                  Sharun directory",
-    env!("CARGO_PKG_DESCRIPTION"));
+    SHARUN_DIR                  Sharun directory");
 }
 
 fn main() {
@@ -414,9 +416,10 @@ fn main() {
                     }
                     return
                 }
+                #[cfg(feature = "lib4bin")]
                 "l" | "lib4bin" => {
-                    let lib4bin_compressed = include_file_compress_deflate!("lib4bin", 9);
-                    let mut decoder = DeflateDecoder::new(&lib4bin_compressed[..]);
+                    let lib4bin_compressed = include_file_compress::include_file_compress_deflate!("lib4bin", 9);
+                    let mut decoder = flate2::read::DeflateDecoder::new(&lib4bin_compressed[..]);
                     let mut lib4bin = Vec::new();
                     decoder.read_to_end(&mut lib4bin).unwrap();
                     drop(decoder);
@@ -425,7 +428,7 @@ fn main() {
                     let cmd = Command::new("bash")
                         .env("SHARUN", sharun)
                         .envs(env::vars())
-                        .stdin(Stdio::piped())
+                        .stdin(std::process::Stdio::piped())
                         .arg("-s").arg("--")
                         .args(exec_args)
                         .spawn();
@@ -543,15 +546,27 @@ fn main() {
     }
     let bin = format!("{shared_bin}/{bin_name}");
 
-    let is_elf32_bin = is_elf32(&bin).unwrap_or_else(|err|{
-        eprintln!("Failed to check ELF class: {bin}: {err}");
-        exit(1)
-    });
+    cfg_if! {
+        if #[cfg(feature = "elf32")] {
+            let is_elf32_bin = is_elf32(&bin).unwrap_or_else(|err|{
+                eprintln!("Failed to check ELF class: {bin}: {err}");
+                exit(1)
+            });
+        } else {
+            let is_elf32_bin = false;
+        }
+    }
 
-    let elf_bytes = get_elf(&bin, is_elf32_bin).unwrap_or_else(|err|{
-        eprintln!("Failed to read ELF: {}: {err}", &bin);
-        exit(1)
-    });
+    cfg_if! {
+        if #[cfg(feature = "pyinstaller")] {
+            let elf_bytes = get_elf(&bin, is_elf32_bin).unwrap_or_else(|err|{
+                eprintln!("Failed to read ELF: {}: {err}", &bin);
+                exit(1)
+            });
+        } else {
+            let elf_bytes = vec![];
+        }
+    }
 
     let mut library_path = if is_elf32_bin {
         shared_lib32
@@ -587,215 +602,227 @@ fn main() {
 
     add_to_env("PATH", bin_dir);
 
-    if let Ok(lib_path_data) = read_to_string(lib_path_file) {
-        let lib_path_data = lib_path_data.trim();
-        let dirs: HashSet<&str> = lib_path_data.split("\n").map(|string|{
-            string.split("/").nth(1).unwrap_or("")
-        }).collect();
-        for dir in dirs {
-            let dir_path = &format!("{library_path}/{dir}");
-            if dir.starts_with("python") {
-                add_to_env("PYTHONHOME", &sharun_dir);
-                env::set_var("PYTHONDONTWRITEBYTECODE", "1")
-            }
-            if dir.starts_with("perl") {
-                add_to_env("PERLLIB", dir_path)
-            }
-            if dir == "gconv" {
-                add_to_env("GCONV_PATH", dir_path)
-            }
-            if dir == "gio" {
-                let modules = &format!("{dir_path}/modules");
-                if Path::new(modules).exists() {
-                    env::set_var("GIO_MODULE_DIR", modules)
-                }
-            }
-            if dir == "dri" {
-                env::set_var("LIBGL_DRIVERS_PATH", dir_path)
-            }
-            if dir.starts_with("spa-") {
-                env::set_var("SPA_PLUGIN_DIR", dir_path)
-            }
-            if dir.starts_with("pipewire-") {
-                env::set_var("PIPEWIRE_MODULE_DIR", dir_path)
-            }
-            if dir.starts_with("gtk-") {
-                add_to_env("GTK_PATH", dir_path);
-                env::set_var("GTK_EXE_PREFIX", &sharun_dir);
-                env::set_var("GTK_DATA_PREFIX", &sharun_dir);
-                for entry in WalkDir::new(dir_path).into_iter().flatten() {
-                    let path = entry.path();
-                    if path.is_file() && entry.file_name().to_string_lossy() == "immodules.cache" {
-                        env::set_var("GTK_IM_MODULE_FILE", path);
-                        break
-                    }
-                }
-            }
-            if dir.starts_with("qt") {
-                let qt_conf = &format!("{bin_dir}/qt.conf");
-                let plugins = &format!("{dir_path}/plugins");
-                if Path::new(plugins).exists() && ! Path::new(qt_conf).exists() {
-                    add_to_env("QT_PLUGIN_PATH", plugins)
-                }
-            }
-            if dir.starts_with("babl-") {
-                env::set_var("BABL_PATH", dir_path)
-            }
-            if dir.starts_with("gegl-") {
-                env::set_var("GEGL_PATH", dir_path)
-            }
-            if dir == "gimp" {
-                let plugins = &format!("{dir_path}/2.0");
-                if Path::new(plugins).exists() {
-                    env::set_var("GIMP2_PLUGINDIR", plugins)
-                }
-            }
-            if dir == "libdecor" {
-                let plugins = &format!("{dir_path}/plugins-1");
-                if Path::new(plugins).exists() {
-                    env::set_var("LIBDECOR_PLUGIN_DIR", plugins)
-                }
-            }
-            if dir.starts_with("tcl") && Path::new(&format!("{dir_path}/msgs")).exists() {
-                add_to_env("TCL_LIBRARY", dir_path);
-                let tk = &format!("{library_path}/{}", dir.replace("tcl", "tk"));
-                if Path::new(&tk).exists() {
-                    add_to_env("TK_LIBRARY", tk)
-                }
-            }
-            if dir.starts_with("gstreamer-") {
-                add_to_env("GST_PLUGIN_PATH", dir_path);
-                add_to_env("GST_PLUGIN_SYSTEM_PATH", dir_path);
-                add_to_env("GST_PLUGIN_SYSTEM_PATH_1_0", dir_path);
-                let gst_scanner = &format!("{dir_path}/gst-plugin-scanner");
-                if Path::new(gst_scanner).exists() {
-                    env::set_var("GST_PLUGIN_SCANNER", gst_scanner)
-                }
-            }
-            if dir.starts_with("gdk-pixbuf-") {
-                let mut is_loaders = false;
-                let mut is_loaders_cache = false;
-                for entry in WalkDir::new(dir_path).into_iter().flatten() {
-                    let path = entry.path();
-                    let name = entry.file_name().to_string_lossy();
-                    if name == "loaders" && path.is_dir() {
-                        env::set_var("GDK_PIXBUF_MODULEDIR", path);
-                        is_loaders = true
-                    }
-                    if name == "loaders.cache" && path.is_file() {
-                        env::set_var("GDK_PIXBUF_MODULE_FILE", path);
-                        is_loaders_cache = true
-                    }
-                    if is_loaders && is_loaders_cache {
-                        break
-                    }
-                }
-            }
-        }
+    let mut lib_path_data = read_to_string(lib_path_file).unwrap_or("".into());
+    if !lib_path_data.is_empty() {
+        lib_path_data = lib_path_data.trim().into();
         library_path = lib_path_data
             .replace("\n", ":")
             .replace("+", &library_path)
     }
+
+    #[cfg(feature = "setenv")]
+    {
+        if !lib_path_data.is_empty() {
+            let dirs: std::collections::HashSet<&str> = lib_path_data.split("\n").map(|string|{
+                string.split("/").nth(1).unwrap_or("")
+            }).collect();
+            for dir in dirs {
+                let dir_path = &format!("{library_path}/{dir}");
+                if dir.starts_with("python") {
+                    add_to_env("PYTHONHOME", &sharun_dir);
+                    env::set_var("PYTHONDONTWRITEBYTECODE", "1")
+                }
+                if dir.starts_with("perl") {
+                    add_to_env("PERLLIB", dir_path)
+                }
+                if dir == "gconv" {
+                    add_to_env("GCONV_PATH", dir_path)
+                }
+                if dir == "gio" {
+                    let modules = &format!("{dir_path}/modules");
+                    if Path::new(modules).exists() {
+                        env::set_var("GIO_MODULE_DIR", modules)
+                    }
+                }
+                if dir == "dri" {
+                    env::set_var("LIBGL_DRIVERS_PATH", dir_path)
+                }
+                if dir.starts_with("spa-") {
+                    env::set_var("SPA_PLUGIN_DIR", dir_path)
+                }
+                if dir.starts_with("pipewire-") {
+                    env::set_var("PIPEWIRE_MODULE_DIR", dir_path)
+                }
+                if dir.starts_with("gtk-") {
+                    add_to_env("GTK_PATH", dir_path);
+                    env::set_var("GTK_EXE_PREFIX", &sharun_dir);
+                    env::set_var("GTK_DATA_PREFIX", &sharun_dir);
+                    for entry in WalkDir::new(dir_path).into_iter().flatten() {
+                        let path = entry.path();
+                        if path.is_file() && entry.file_name().to_string_lossy() == "immodules.cache" {
+                            env::set_var("GTK_IM_MODULE_FILE", path);
+                            break
+                        }
+                    }
+                }
+                if dir.starts_with("qt") {
+                    let qt_conf = &format!("{bin_dir}/qt.conf");
+                    let plugins = &format!("{dir_path}/plugins");
+                    if Path::new(plugins).exists() && ! Path::new(qt_conf).exists() {
+                        add_to_env("QT_PLUGIN_PATH", plugins)
+                    }
+                }
+                if dir.starts_with("babl-") {
+                    env::set_var("BABL_PATH", dir_path)
+                }
+                if dir.starts_with("gegl-") {
+                    env::set_var("GEGL_PATH", dir_path)
+                }
+                if dir == "gimp" {
+                    let plugins = &format!("{dir_path}/2.0");
+                    if Path::new(plugins).exists() {
+                        env::set_var("GIMP2_PLUGINDIR", plugins)
+                    }
+                }
+                if dir == "libdecor" {
+                    let plugins = &format!("{dir_path}/plugins-1");
+                    if Path::new(plugins).exists() {
+                        env::set_var("LIBDECOR_PLUGIN_DIR", plugins)
+                    }
+                }
+                if dir.starts_with("tcl") && Path::new(&format!("{dir_path}/msgs")).exists() {
+                    add_to_env("TCL_LIBRARY", dir_path);
+                    let tk = &format!("{library_path}/{}", dir.replace("tcl", "tk"));
+                    if Path::new(&tk).exists() {
+                        add_to_env("TK_LIBRARY", tk)
+                    }
+                }
+                if dir.starts_with("gstreamer-") {
+                    add_to_env("GST_PLUGIN_PATH", dir_path);
+                    add_to_env("GST_PLUGIN_SYSTEM_PATH", dir_path);
+                    add_to_env("GST_PLUGIN_SYSTEM_PATH_1_0", dir_path);
+                    let gst_scanner = &format!("{dir_path}/gst-plugin-scanner");
+                    if Path::new(gst_scanner).exists() {
+                        env::set_var("GST_PLUGIN_SCANNER", gst_scanner)
+                    }
+                }
+                if dir.starts_with("gdk-pixbuf-") {
+                    let mut is_loaders = false;
+                    let mut is_loaders_cache = false;
+                    for entry in WalkDir::new(dir_path).into_iter().flatten() {
+                        let path = entry.path();
+                        let name = entry.file_name().to_string_lossy();
+                        if name == "loaders" && path.is_dir() {
+                            env::set_var("GDK_PIXBUF_MODULEDIR", path);
+                            is_loaders = true
+                        }
+                        if name == "loaders.cache" && path.is_file() {
+                            env::set_var("GDK_PIXBUF_MODULE_FILE", path);
+                            is_loaders_cache = true
+                        }
+                        if is_loaders && is_loaders_cache {
+                            break
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    drop(lib_path_data);
 
     let ld_library_path_env = &get_env_var("LD_LIBRARY_PATH");
     if !ld_library_path_env.is_empty() {
         library_path += &format!(":{ld_library_path_env}")
     }
 
-    let share_dir = PathBuf::from(format!("{sharun_dir}/share"));
-    if share_dir.exists() {
-        if let Ok(dir) = share_dir.read_dir() {
-            add_to_env("XDG_DATA_DIRS", "/usr/local/share");
-            add_to_env("XDG_DATA_DIRS", "/usr/share");
-            add_to_env("XDG_DATA_DIRS", format!("{}/.local/share", get_env_var("HOME")));
-            add_to_env("XDG_DATA_DIRS", &share_dir);
-            let xdg_data_dirs = &get_env_var("XDG_DATA_DIRS");
-            for entry in dir.flatten() {
-                let entry_path = entry.path();
-                if entry_path.is_dir() {
-                    let name = entry.file_name();
-                    match name.to_str().unwrap() {
-                        "glvnd" => {
-                            add_to_xdg_data_env(xdg_data_dirs,
-                                "__EGL_VENDOR_LIBRARY_DIRS", "glvnd/egl_vendor.d")
-                        }
-                        "vulkan" => {
-                            let vk_dir = "vulkan/icd.d";
-                            let vk_env = "VK_DRIVER_FILES";
-                            if get_env_var("SHARUN_ALLOW_SYS_VKICD") == "1" {
-                                env::remove_var("SHARUN_ALLOW_SYS_VKICD");
-                                add_to_xdg_data_env(xdg_data_dirs, vk_env, vk_dir)
-                            } else {
-                                for xdg_data_dir in xdg_data_dirs.rsplit(":") {
-                                    let vk_icd_dir = Path::new(xdg_data_dir).join(vk_dir);
-                                    if vk_icd_dir.exists() {
-                                        if xdg_data_dir.starts_with(share_dir.to_str().unwrap()) {
-                                            add_to_env(vk_env, vk_icd_dir);
-                                        } else if let Ok(dir) = vk_icd_dir.read_dir() {
-                                            for entry in dir.flatten() {
-                                                if entry.file_type().unwrap().is_file() &&
-                                                    entry.file_name().to_string_lossy().contains("nvidia") {
-                                                    add_to_env(vk_env, entry.path())
+    #[cfg(feature = "setenv")]
+    {
+        let share_dir = PathBuf::from(format!("{sharun_dir}/share"));
+        if share_dir.exists() {
+            if let Ok(dir) = share_dir.read_dir() {
+                add_to_env("XDG_DATA_DIRS", "/usr/local/share");
+                add_to_env("XDG_DATA_DIRS", "/usr/share");
+                add_to_env("XDG_DATA_DIRS", format!("{}/.local/share", get_env_var("HOME")));
+                add_to_env("XDG_DATA_DIRS", &share_dir);
+                let xdg_data_dirs = &get_env_var("XDG_DATA_DIRS");
+                for entry in dir.flatten() {
+                    let entry_path = entry.path();
+                    if entry_path.is_dir() {
+                        let name = entry.file_name();
+                        match name.to_str().unwrap() {
+                            "glvnd" => {
+                                add_to_xdg_data_env(xdg_data_dirs,
+                                    "__EGL_VENDOR_LIBRARY_DIRS", "glvnd/egl_vendor.d")
+                            }
+                            "vulkan" => {
+                                let vk_dir = "vulkan/icd.d";
+                                let vk_env = "VK_DRIVER_FILES";
+                                if get_env_var("SHARUN_ALLOW_SYS_VKICD") == "1" {
+                                    env::remove_var("SHARUN_ALLOW_SYS_VKICD");
+                                    add_to_xdg_data_env(xdg_data_dirs, vk_env, vk_dir)
+                                } else {
+                                    for xdg_data_dir in xdg_data_dirs.rsplit(":") {
+                                        let vk_icd_dir = Path::new(xdg_data_dir).join(vk_dir);
+                                        if vk_icd_dir.exists() {
+                                            if xdg_data_dir.starts_with(share_dir.to_str().unwrap()) {
+                                                add_to_env(vk_env, vk_icd_dir);
+                                            } else if let Ok(dir) = vk_icd_dir.read_dir() {
+                                                for entry in dir.flatten() {
+                                                    if entry.file_type().unwrap().is_file() &&
+                                                        entry.file_name().to_string_lossy().contains("nvidia") {
+                                                        add_to_env(vk_env, entry.path())
+                                                    }
                                                 }
                                             }
                                         }
                                     }
                                 }
                             }
-                        }
-                        "X11" => {
-                            let xkb = &entry_path.join("xkb");
-                            if xkb.exists() {
-                                env::set_var("XKB_CONFIG_ROOT", xkb)
+                            "X11" => {
+                                let xkb = &entry_path.join("xkb");
+                                if xkb.exists() {
+                                    env::set_var("XKB_CONFIG_ROOT", xkb)
+                                }
                             }
-                        }
-                        "glib-2.0" => {
-                            add_to_xdg_data_env(xdg_data_dirs,
-                                "GSETTINGS_SCHEMA_DIR", "glib-2.0/schemas")
-                        }
-                        "gimp" => {
-                            let gimp2_datadir = &entry_path.join("2.0");
-                            if gimp2_datadir.exists() {
-                                env::set_var("GIMP2_DATADIR",gimp2_datadir)
+                            "glib-2.0" => {
+                                add_to_xdg_data_env(xdg_data_dirs,
+                                    "GSETTINGS_SCHEMA_DIR", "glib-2.0/schemas")
                             }
-                        }
-                        "terminfo" => {
-                            env::set_var("TERMINFO",entry_path)
-                        }
-                        "file" => {
-                            let magic_file = &entry_path.join("misc/magic.mgc");
-                            if magic_file.exists() {
-                                env::set_var("MAGIC", magic_file)
+                            "gimp" => {
+                                let gimp2_datadir = &entry_path.join("2.0");
+                                if gimp2_datadir.exists() {
+                                    env::set_var("GIMP2_DATADIR",gimp2_datadir)
+                                }
                             }
+                            "terminfo" => {
+                                env::set_var("TERMINFO",entry_path)
+                            }
+                            "file" => {
+                                let magic_file = &entry_path.join("misc/magic.mgc");
+                                if magic_file.exists() {
+                                    env::set_var("MAGIC", magic_file)
+                                }
+                            }
+                            _ => {}
                         }
-                        _ => {}
                     }
                 }
             }
         }
-    }
 
-    let etc_dir = PathBuf::from(format!("{sharun_dir}/etc"));
-    if etc_dir.exists() {
-        if let Ok(dir) = etc_dir.read_dir() {
-            for entry in dir.flatten() {
-                let entry_path = entry.path();
-                if entry_path.is_dir() {
-                    let name = entry.file_name();
-                    match name.to_str().unwrap() {
-                        "fonts" => {
-                            let fonts_conf = entry_path.join("fonts.conf");
-                            if fonts_conf.exists() {
-                                env::set_var("FONTCONFIG_FILE", fonts_conf)
+        let etc_dir = PathBuf::from(format!("{sharun_dir}/etc"));
+        if etc_dir.exists() {
+            if let Ok(dir) = etc_dir.read_dir() {
+                for entry in dir.flatten() {
+                    let entry_path = entry.path();
+                    if entry_path.is_dir() {
+                        let name = entry.file_name();
+                        match name.to_str().unwrap() {
+                            "fonts" => {
+                                let fonts_conf = entry_path.join("fonts.conf");
+                                if fonts_conf.exists() {
+                                    env::set_var("FONTCONFIG_FILE", fonts_conf)
+                                }
                             }
-                        }
-                        "gimp" => {
-                            let gimp2_sysconfdir = entry_path.join("2.0");
-                            if gimp2_sysconfdir.exists() {
-                                env::set_var("GIMP2_SYSCONFDIR", gimp2_sysconfdir)
+                            "gimp" => {
+                                let gimp2_sysconfdir = entry_path.join("2.0");
+                                if gimp2_sysconfdir.exists() {
+                                    env::set_var("GIMP2_SYSCONFDIR", gimp2_sysconfdir)
+                                }
                             }
+                            _ => {}
                         }
-                        _ => {}
                     }
                 }
             }
@@ -806,8 +833,15 @@ fn main() {
         env::remove_var(var_name)
     }
 
-    let is_pyinstaller_elf = is_elf_section(&elf_bytes, "pydata").unwrap_or(false);
-    let is_pyinstaller_dir = Path::new(&shared_bin).join("_internal").exists();
+    cfg_if! {
+        if #[cfg(feature = "pyinstaller")] {
+            let is_pyinstaller_elf = is_elf_section(&elf_bytes, "pydata").unwrap_or(false);
+            let is_pyinstaller_dir = Path::new(&shared_bin).join("_internal").exists();
+        } else {
+            let is_pyinstaller_elf = false;
+            let is_pyinstaller_dir = false;
+        }
+    }
 
     let mut interpreter_args: Vec<CString> = Vec::new();
     if !is_pyinstaller_elf || is_pyinstaller_dir || is_elf32_bin {
