@@ -1,6 +1,6 @@
 [package]
 name = "sharun"
-version = "0.5.1"
+version = "0.5.2"
 readme = "README.md"
 license = "MIT"
 repository = "https://github.com/VHSgunzo/sharun"
@@ -19,7 +19,20 @@ codegen-units = 1
 panic = "abort"
 opt-level = 0
 
+[features]
+default = [
+    "elf32",
+    "setenv",
+    "lib4bin",
+    "pyinstaller"
+]
+elf32 = []
+setenv = []
+lib4bin = []
+pyinstaller = []
+
 [dependencies]
+cfg-if = "1.0.0"
 goblin = "0.8.2"
 walkdir = "2.5.0"
 flate2 = "1.0.35"
