@@ -172,7 +172,6 @@ get_libs() {
     unset libs libs4libs
     local libs libs4libs needed_libs
     if [ "$STRACE_MODE" == 1 ] && ! is_so && \
-    [[ "${BINARIES["$binary_src_pth"]}" != 1 ]] && \
     ([[ -z "$STRACE_EXE" || "$STRACE_EXE" == "$1" ]]||\
     [[ "$STRACE_EXE" == 'sharun' && "$1" == "$dst_dir/sharun" && "$binary_name" == 'sharun' ]])
         then
@@ -659,6 +658,7 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                         IS_SO="$(grep -o 'shared object'<<<"$FILE_INFO")"
                         IS_EXECUTABLE="$(grep -o 'executable'<<<"$FILE_INFO")"
                         IS_EXECUTABLE="${IS_EXECUTABLE:=$(([ -n "$IS_SO" ] && ! is_so) && echo executable)}"
+                        IS_SHARUN="$(find "$binary_src_pth" -xdev -samefile "${dst_dir}/sharun" 2>/dev/null)"
                         info_msg "$YELLOW[ $binary_number ]: $BLUE[$binary_name] ${GREEN}..."
                         if [ "$HARD_LINKS" == 1 ] && [[ -n "$IS_SCRIPT" || -n "$IS_STATIC" ]]
                             then
@@ -673,7 +673,6 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                             then
                                 needed_libs="$(print_needed "$binary_src_pth")"
                                 LIBS="$(get_libs "$binary_src_pth" "$needed_libs")"
-                                BINARIES["$binary_src_pth"]=1
                                 is_so && LIBS="$(echo -e "$LIBS\n$binary"|sort -u|sed '/^$/d')"
                                 if [[ -n "$LIBS" && -z "$IS_SCRIPT" && -z "$IS_STATIC" ]]
                                     then
@@ -687,7 +686,7 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                                 if [ "$LIBS_ONLY" != 1 ] && ! is_so && [[ "$binary_name" != 'sharun' && \
                                     "$binary_readlink_name" != 'sharun' ]]
                                     then
-                                        if [ "$binary_real_name" != 'sharun' ]
+                                        if [[ "$binary_real_name" != 'sharun' && -z "$IS_SHARUN" ]]
                                             then
                                                 if [[ "$with_sharun" == 1 && ! -x "${dst_dir}/sharun" ]]
                                                     then
@@ -772,7 +771,8 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                                                 (try_cd "$bin_dir_pth"
                                                 try_ln "$binary_real_name" "$binary_name")||exit 1
                                         fi
-                                        if [ "$create_links" == 1 ]
+                                        if [ "$create_links" == 1 ]||[[ "$binary_name" != 'sharun' && \
+                                            "$binary_readlink_name" != 'sharun' && -n "$IS_SHARUN" ]]
                                             then
                                                 try_mkdir "$sharun_bin_dir_pth"
                                                 [ "$hard_links" == 1 ] && \
