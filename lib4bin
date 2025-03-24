@@ -165,12 +165,14 @@ print_rpath() { patchelf --print-rpath "$1" 2>/dev/null ; }
 
 ldd_libs() {
     ldd "$1" 2>/dev/null|grep -v 'error while loading shared libraries'|\
-    grep '/lib'|cut -d'>' -f2|sed 's| (.*)||g'|sed 's|^[[:space:]]*||g'
+    grep '/lib'|cut -d'>' -f2|sed 's| (.*)||g'|sed 's|^[[:space:]]*||g'|sort -u
 }
 
 get_libs() {
     unset libs libs4libs
+    local libs libs4libs needed_libs
     if [ "$STRACE_MODE" == 1 ] && ! is_so && \
+    [[ "${BINARIES["$binary_src_pth"]}" != 1 ]] && \
     ([[ -z "$STRACE_EXE" || "$STRACE_EXE" == "$1" ]]||\
     [[ "$STRACE_EXE" == 'sharun' && "$1" == "$dst_dir/sharun" && "$binary_name" == 'sharun' ]])
         then
@@ -178,33 +180,37 @@ get_libs() {
             [[ "$(strace --help)" =~ always-show-pid ]] && \
             STRACE_ARGS='--always-show-pid'||unset STRACE_ARGS
             info_msg "$YELLOW[ STRACE ]: $BLUE[$1 ${STRACE_CMD_ARGS[@]}] ${GREEN}..."
-            strace -f -e trace=openat,open $STRACE_ARGS -o "$libs_file" "$(readlink -f "$1")" "${STRACE_CMD_ARGS[@]}" 1>&2 &
+            strace -f -e trace=openat,open $STRACE_ARGS -o "$libs_file" "$1" "${STRACE_CMD_ARGS[@]}" 1>&2 &
             sleep $STRACE_TIME
             local pids="$(cut -d ' ' -f1<"$libs_file"|sort -u)"
             kill $pids 2>/dev/null
-            local libs="$(\
+            libs="$(\
                 sed '/nvidia/d;/libcuda/d;/ENOENT/d;/unfinished/d;/lib-dynload/d;/.wrappe/d;/_internal/d'<"$libs_file"|\
                     grep -Eo '".*lib.*\.so(\.[0-9].*)?"'|sed -u 's|"||g')\n"
             rm -f "$libs_file"
     fi
-    [ -n "$2" ] && local needed_libs="$2"||\
-    local needed_libs="$(print_needed "$1")"
-    local libs+="$(([ -z "$needed_libs" ]||\
+    [ -n "$2" ] && needed_libs="$2"||\
+    needed_libs="$(print_needed "$1")"
+    libs+="$(([ -z "$needed_libs" ]||\
         grep -E "$(tr '\n' '|'<<<"$needed_libs"|sed 's|\||$\||g')libpthread.so.0$"<<<"$ALL_LIBS" ; \
         ldd_libs "$1")|sort -u)"
-    local libs="$(echo -e "$libs")"
+    libs="$(echo -e "$libs"|sort -u)"
     [ -n "$IS_ELF32" ] && \
-    local libs="$(grep -vE '/lib/|/lib64/|/.*64-linux-gnu/'<<<"$libs")"||\
-    local libs="$(grep -vE '/lib32/|/i386-linux-gnu/|/arm-linux-gnu/'<<<"$libs")"
+    libs="$(grep -vE '/lib/|/lib64/|/.*64-linux-gnu/'<<<"$libs")"||\
+    libs="$(grep -vE '/lib32/|/i386-linux-gnu/|/arm-linux-gnu/'<<<"$libs")"
+    OLD_IFS="$IFS"
+    IFS=$'\n'
     for lib in $libs
-        do local libs4libs="$(echo -e "$(ldd_libs "$lib")\n$libs4libs")"
+        do libs4libs="$(echo -e "$(ldd_libs "$lib")\n$libs4libs")"
     done
+    IFS="$OLD_IFS"
     echo -e "$libs\n$libs4libs"|sort -u|sed '/^$/d'
 }
 
 repath_needed_libs() {
-    [ -n "$2" ] && local needed_libs="$2"||\
-    local needed_libs="$(print_needed "$1")"
+    local needed_libs
+    [ -n "$2" ] && needed_libs="$2"||\
+    needed_libs="$(print_needed "$1")"
     local patch_needed_libs="$(grep '^/'<<<"$needed_libs")"
     if [ -n "$patch_needed_libs" ]
         then
@@ -645,7 +651,7 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                             dst_dir_pth="${dst_dir_pth}.dir"
                         DST_DIRS["$dst_dir_pth"]=
                         bin_dir_pth="${dst_dir_pth}/bin"
-                        FILE_INFO="$(file "$binary_src_pth" 2>/dev/null)"
+                        FILE_INFO="$(file "$binary_src_pth" 2>/dev/null|cut -d':' -f2-)"
                         IS_ELF="$(grep -o 'ELF'<<<"$FILE_INFO")"
                         IS_STATIC="$(grep -o 'static'<<<"$FILE_INFO")"
                         IS_SCRIPT="$(grep -o 'script'<<<"$FILE_INFO")"
@@ -667,6 +673,7 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                             then
                                 needed_libs="$(print_needed "$binary_src_pth")"
                                 LIBS="$(get_libs "$binary_src_pth" "$needed_libs")"
+                                BINARIES["$binary_src_pth"]=1
                                 is_so && LIBS="$(echo -e "$LIBS\n$binary"|sort -u|sed '/^$/d')"
                                 if [[ -n "$LIBS" && -z "$IS_SCRIPT" && -z "$IS_STATIC" ]]
                                     then
