@@ -180,7 +180,7 @@ get_libs() {
             [[ "$(strace --help)" =~ always-show-pid ]] && \
             STRACE_ARGS='--always-show-pid'||unset STRACE_ARGS
             info_msg "$YELLOW[ STRACE ]: $BLUE[$1 ${STRACE_CMD_ARGS[@]}] ${GREEN}..."
-            strace -f -e trace=openat,open $STRACE_ARGS -o "$libs_file" "$1" "${STRACE_CMD_ARGS[@]}" 1>&2 &
+            strace -f -e trace=openat,open $STRACE_ARGS -o "$libs_file" "$(readlink -f "$1")" "${STRACE_CMD_ARGS[@]}" 1>&2 &
             sleep $STRACE_TIME
             local pids="$(cut -d ' ' -f1<"$libs_file"|sort -u)"
             kill $pids 2>/dev/null
