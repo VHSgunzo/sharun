@@ -172,7 +172,6 @@ This can be useful, for example, to use [ld-preload-open](https://github.com/fri
 |`QT_PLUGIN_PATH` | `${SHARUN_DIR}/shared/$LIB/qt*/plugins`|
 |`BABL_PATH` | `${SHARUN_DIR}/shared/$LIB/babl-*`|
 |`GEGL_PATH` | `${SHARUN_DIR}/shared/$LIB/gegl-*`|
-|`GIMP2_PLUGINDIR` | `${SHARUN_DIR}/shared/$LIB/gimp/2.0`|
 |`TCL_LIBRARY` | `${SHARUN_DIR}/shared/$LIB/tcl*`|
 |`TK_LIBRARY` | `${SHARUN_DIR}/shared/$LIB/tk*`|
 |`GST_PLUGIN_PATH`, `GST_PLUGIN_SYSTEM_PATH`, `GST_PLUGIN_SYSTEM_PATH_1_0`, and `GST_PLUGIN_SCANNER` | `${SHARUN_DIR}/shared/$LIB/gstreamer-*`|
@@ -189,13 +188,11 @@ This can be useful, for example, to use [ld-preload-open](https://github.com/fri
 |`__EGL_VENDOR_LIBRARY_DIRS` | `${SHARUN_DIR}/share/glvnd/egl_vendor.d`|
 |`XKB_CONFIG_ROOT` | `${SHARUN_DIR}/share/X11/xkb`|
 |`GSETTINGS_SCHEMA_DIR` | `${SHARUN_DIR}/share/glib-2.0/schemas`|
-|`GIMP2_DATADIR` | `${SHARUN_DIR}/share/gimp/2.0`|
 |`TERMINFO` | `${SHARUN_DIR}/share/terminfo`|
 |`MAGIC` | `${SHARUN_DIR}/share/file/misc/magic.mgc`|
 |||
 |---|---|
 |`FONTCONFIG_FILE` | `${SHARUN_DIR}/etc/fonts/fonts.conf`|
-|`GIMP2_SYSCONFDIR` | `${SHARUN_DIR}/etc/gimp/2.0`|
 
 ## Projects that use sharun:
 * [SoarPkgs](https://github.com/pkgforge/soarpkgs)
