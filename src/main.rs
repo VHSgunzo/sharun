@@ -668,12 +668,6 @@ fn main() {
                 if dir.starts_with("gegl-") {
                     env::set_var("GEGL_PATH", dir_path)
                 }
-                if dir == "gimp" {
-                    let plugins = &format!("{dir_path}/2.0");
-                    if Path::new(plugins).exists() {
-                        env::set_var("GIMP2_PLUGINDIR", plugins)
-                    }
-                }
                 if dir == "libdecor" {
                     let plugins = &format!("{dir_path}/plugins-1");
                     if Path::new(plugins).exists() {
@@ -779,12 +773,6 @@ fn main() {
                                 add_to_xdg_data_env(xdg_data_dirs,
                                     "GSETTINGS_SCHEMA_DIR", "glib-2.0/schemas")
                             }
-                            "gimp" => {
-                                let gimp2_datadir = &entry_path.join("2.0");
-                                if gimp2_datadir.exists() {
-                                    env::set_var("GIMP2_DATADIR",gimp2_datadir)
-                                }
-                            }
                             "terminfo" => {
                                 env::set_var("TERMINFO",entry_path)
                             }
@@ -813,12 +801,6 @@ fn main() {
                                 let fonts_conf = entry_path.join("fonts.conf");
                                 if fonts_conf.exists() {
                                     env::set_var("FONTCONFIG_FILE", fonts_conf)
-                                }
-                            }
-                            "gimp" => {
-                                let gimp2_sysconfdir = entry_path.join("2.0");
-                                if gimp2_sysconfdir.exists() {
-                                    env::set_var("GIMP2_SYSCONFDIR", gimp2_sysconfdir)
                                 }
                             }
                             _ => {}
