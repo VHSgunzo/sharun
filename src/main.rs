@@ -668,6 +668,9 @@ fn main() {
                 if dir.starts_with("gegl-") {
                     env::set_var("GEGL_PATH", dir_path)
                 }
+                if dir.starts_with("girepository-") {
+                    env::set_var("GI_TYPELIB_PATH", dir_path)
+                }
                 if dir == "libdecor" {
                     let plugins = &format!("{dir_path}/plugins-1");
                     if Path::new(plugins).exists() {

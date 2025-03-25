@@ -82,7 +82,7 @@ cp ./target/$(uname -m)-unknown-linux-musl/release/sharun .
                                 It can also be set at runtime (env: STARTPE_CLEANUP=0)
     -y, --with-python        Pack python using uv from PATH or env or download
                                 (env: WITH_PYTHON=1, UV=/path|URL, UV_URL=URL)
-    -pp, --python-pkg 'pkg'  Specify the python package for packing (env: PYTHON_PKG='pkg')
+    -pp, --python-pkg 'pkg'  Specify the python package or '/path/requirements.txt' (env: PYTHON_PKG='pkg')
     -pv, --python-ver 3.12   Specify the python version for packing (env: PYTHON_VER=3.12)
     -pi, --python-pip        Leave pip after install python package (env: PYTHON_LEAVE_PIP=1)
     -pw, --python-wheel      Leave wheel after install python package (env: PYTHON_LEAVE_WHEEL=1)
@@ -181,6 +181,7 @@ This can be useful, for example, to use [ld-preload-open](https://github.com/fri
 |`LIBGL_DRIVERS_PATH` | `${SHARUN_DIR}/shared/$LIB/dri`|
 |`SPA_PLUGIN_DIR` | `${SHARUN_DIR}/shared/$LIB/spa-*`|
 |`PIPEWIRE_MODULE_DIR` | `${SHARUN_DIR}/shared/$LIB/pipewire-*`|
+|`GI_TYPELIB_PATH` | `${SHARUN_DIR}/shared/$LIB/girepository-*`|
 |||
 |---|---|
 |`XDG_DATA_DIRS` | `${SHARUN_DIR}/share`|
