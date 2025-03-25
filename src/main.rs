@@ -595,6 +595,23 @@ fn main() {
         env::remove_var("SHARUN_WORKING_DIR")
     }
 
+    #[cfg(feature = "setenv")]
+    {
+        if let Ok(dir) = PathBuf::from(&library_path).read_dir() {
+            for entry in dir.flatten() {
+                let entry_path = entry.path();
+                if entry_path.is_dir() {
+                    let name = entry.file_name();
+                    if let Some(name) = name.to_str() {
+                        if name.starts_with("girepository-") {
+                            env::set_var("GI_TYPELIB_PATH", entry_path)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     let lib_path_file = &format!("{library_path}/lib.path");
     if !Path::new(lib_path_file).exists() && is_writable(&library_path) {
         gen_library_path(&library_path, lib_path_file)
@@ -602,13 +619,7 @@ fn main() {
 
     add_to_env("PATH", bin_dir);
 
-    let mut lib_path_data = read_to_string(lib_path_file).unwrap_or("".into());
-    if !lib_path_data.is_empty() {
-        lib_path_data = lib_path_data.trim().into();
-        library_path = lib_path_data
-            .replace("\n", ":")
-            .replace("+", &library_path)
-    }
+    let mut lib_path_data = read_to_string(lib_path_file).unwrap_or_default();
 
     #[cfg(feature = "setenv")]
     {
@@ -668,9 +679,6 @@ fn main() {
                 if dir.starts_with("gegl-") {
                     env::set_var("GEGL_PATH", dir_path)
                 }
-                if dir.starts_with("girepository-") {
-                    env::set_var("GI_TYPELIB_PATH", dir_path)
-                }
                 if dir == "libdecor" {
                     let plugins = &format!("{dir_path}/plugins-1");
                     if Path::new(plugins).exists() {
@@ -714,17 +722,7 @@ fn main() {
                 }
             }
         }
-    }
 
-    drop(lib_path_data);
-
-    let ld_library_path_env = &get_env_var("LD_LIBRARY_PATH");
-    if !ld_library_path_env.is_empty() {
-        library_path += &format!(":{ld_library_path_env}")
-    }
-
-    #[cfg(feature = "setenv")]
-    {
         let share_dir = PathBuf::from(format!("{sharun_dir}/share"));
         if share_dir.exists() {
             if let Ok(dir) = share_dir.read_dir() {
@@ -812,6 +810,20 @@ fn main() {
                 }
             }
         }
+    }
+
+    if !lib_path_data.is_empty() {
+        lib_path_data = lib_path_data.trim().into();
+        library_path = lib_path_data
+            .replace("\n", ":")
+            .replace("+", &library_path)
+    }
+
+    drop(lib_path_data);
+
+    let ld_library_path_env = &get_env_var("LD_LIBRARY_PATH");
+    if !ld_library_path_env.is_empty() {
+        library_path += &format!(":{ld_library_path_env}")
     }
 
     for var_name in unset_envs {
