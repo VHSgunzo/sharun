@@ -192,6 +192,7 @@ This can be useful, for example, to use [ld-preload-open](https://github.com/fri
 |`GSETTINGS_SCHEMA_DIR` | `${SHARUN_DIR}/share/glib-2.0/schemas`|
 |`TERMINFO` | `${SHARUN_DIR}/share/terminfo`|
 |`MAGIC` | `${SHARUN_DIR}/share/file/misc/magic.mgc`|
+|`LIBTHAI_DICTDIR` | `${SHARUN_DIR}/share/libthai`|
 |||
 |---|---|
 |`FONTCONFIG_FILE` | `${SHARUN_DIR}/etc/fonts/fonts.conf`|

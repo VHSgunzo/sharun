@@ -771,9 +771,8 @@ fn main() {
                                 }
                             }
                             "libthai" => {
-                                let libhthai = &entry_path.join("libthai");
-                                if libthai.exists() {
-                                    env::set_var("LIBTHAI_DICTDIR", libthai)
+                                if entry_path.join("thbrk.tri").exists() {
+                                    env::set_var("LIBTHAI_DICTDIR", entry_path)
                                 }
                             }
                             "glib-2.0" => {
