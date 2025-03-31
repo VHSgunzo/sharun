@@ -770,6 +770,12 @@ fn main() {
                                     env::set_var("XKB_CONFIG_ROOT", xkb)
                                 }
                             }
+                            "libthai" => {
+                                let libhthai = &entry_path.join("libthai");
+                                if libthai.exists() {
+                                    env::set_var("LIBTHAI_DICTDIR", libthai)
+                                }
+                            }
                             "glib-2.0" => {
                                 add_to_xdg_data_env(xdg_data_dirs,
                                     "GSETTINGS_SCHEMA_DIR", "glib-2.0/schemas")

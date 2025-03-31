@@ -898,6 +898,15 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                                                                                         try_mkdir "$dst_dir/etc/fonts"
                                                                                         try_cp "$sys_fcfg" "$dst_fcfg"
                                                                                 fi ;;
+                                                                            */libthai*.so*)
+                                                                                sys_libthai_dir='/usr/share/libthai'
+                                                                                dst_libthai_dir="$dst_dir/share/libthai"
+                                                                                if [[ -d "$sys_libthai_dir" && ! -d "$dst_libthai_dir" ]]
+                                                                                    then
+                                                                                        hook_msg "copy libthai..."
+                                                                                        try_mkdir "$dst_libthai_dir"
+                                                                                        try_cp -T "$sys_libthai_dir" "$dst_libthai_dir"
+                                                                                fi ;;
                                                                             */libxkbcommon*.so*)
                                                                                 sys_xcb_dir='/usr/share/X11/xkb'
                                                                                 dst_xcb_dir="$dst_dir/share/X11/xkb"
