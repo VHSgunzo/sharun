@@ -940,8 +940,8 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                                                                                 dst_webkit_lib_dir="$(dirname "$lib_dst_pth")/$webkit"
                                                                                 hook_msg "hack webkitgtk to be portable..."
                                                                                 sed -i 's|/usr|././|g' "$lib_dst_pth"
-                                                                                for sys_webkit_lib_dir in "$(dirname "$lib_src_pth")/$webkit" \
-                                                                                    "$(dirname "$lib_src_pth")exec/$webkit"
+                                                                                for sys_webkit_lib_dir in "${lib_src_dirname_pth}/$webkit" \
+                                                                                    "${lib_src_dirname_pth}exec/$webkit"
                                                                                     do
                                                                                         if [ -d "$sys_webkit_lib_dir" ] && \
                                                                                             [[ ! -d "$dst_webkit_lib_dir/injected-bundle" || \
@@ -959,8 +959,8 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                                                                                                 ln $varg -sr "$dst_dir/sharun" "$dst_webkit_lib_dir/$(basename "$bin_to_wrap")"
                                                                                         fi
                                                                                 done
-                                                                                if [ "$(basename "$(dirname "$lib_src_pth")")" != "$lib_dir" ]
-                                                                                    then try_ln . "$dst_dir_pth/$lib_dir/$(basename "$(dirname "$lib_src_pth")")"
+                                                                                if [ "$(basename "$lib_src_dirname_pth")" != "$lib_dir" ]
+                                                                                    then try_ln . "$dst_dir_pth/$lib_dir/$(basename "$lib_src_dirname_pth")"
                                                                                 fi
                                                                                 if ! grep -q 'SHARUN_WORKING_DIR=${SHARUN_DIR}' "$dst_dir/.env" 2>/dev/null
                                                                                     then echo 'SHARUN_WORKING_DIR=${SHARUN_DIR}' >> "$dst_dir/.env"
@@ -1013,13 +1013,21 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                                                                                 done ;;
                                                                             */libgirepository-*.so*)
                                                                                 girepository="$(grep -o 'girepository-.*\.so'<<<"$lib_src_name"|sed "s|\.so$||")"
-                                                                                sys_girepository="$(dirname "$lib_src_pth")/$girepository"
+                                                                                sys_girepository="${lib_src_dirname_pth}/$girepository"
                                                                                 dst_girepository="$lib_dst_dir_pth/$girepository"
                                                                                 if [[ -d "$sys_girepository" && ! -d "$dst_girepository" ]]
                                                                                     then
                                                                                         hook_msg "copy girepository..."
                                                                                         try_mkdir "$dst_girepository"
                                                                                         try_cp -T "$sys_girepository" "$dst_girepository"
+                                                                                        find "$lib_src_dirname_pth" -type f -wholename "*/$girepository/*.typelib" 2>/dev/null|\
+                                                                                        grep -v "^$sys_girepository"|while IFS=$'\n' read -r sys_typelib
+                                                                                            do
+                                                                                                dst_typelib="$dst_girepository/$(basename "$sys_typelib")"
+                                                                                                if [[ -f "$sys_typelib" && ! -f "$dst_typelib" ]]
+                                                                                                    then try_cp "$sys_typelib" "$dst_typelib"
+                                                                                                fi
+                                                                                        done
                                                                                 fi ;;
                                                                         esac
                                                                 fi

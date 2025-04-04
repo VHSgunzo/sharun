@@ -1,5 +1,5 @@
 use std::{
-    env, fs,
+    env,
     str::FromStr,
     path::{Path, PathBuf},
     ffi::{CString, OsStr},
@@ -47,12 +47,12 @@ fn get_interpreter(library_path: &str) -> Result<PathBuf> {
 }
 
 fn realpath(path: &str) -> String {
-    Path::new(path).canonicalize().unwrap().to_str().unwrap().to_string()
+    Path::new(path).canonicalize().unwrap_or_default().to_str().unwrap_or_default().to_string()
 }
 
 fn basename(path: &str) -> String {
     let pieces: Vec<&str> = path.rsplit('/').collect();
-    pieces.first().unwrap().to_string()
+    pieces.first().unwrap_or(&"").to_string()
 }
 
 fn dirname(path: &str) -> String {
@@ -71,9 +71,20 @@ fn dirname(path: &str) -> String {
 }
 
 fn is_hardlink(path1: &Path, path2: &Path) -> bool {
-    if let Ok(metadata1) = fs::metadata(path1) {
-        if let Ok(metadata2) = fs::metadata(path2) {
+    if let Ok(metadata1) = path1.metadata() {
+        if let Ok(metadata2) = path2.metadata() {
             return metadata1.ino() == metadata2.ino()
+        }
+    }
+    false
+}
+
+fn is_same_rootdir(rootdir: &Path, path1: &Path, path2: &Path) -> bool {
+    if let Ok(abs_path1) = path1.canonicalize() {
+        if let Ok(abs_path2) = path2.canonicalize() {
+            if let Ok(abs_rootdir) = &rootdir.canonicalize() {
+                return abs_path1.starts_with(abs_rootdir) && abs_path2.starts_with(abs_rootdir)
+            }
         }
     }
     false
@@ -83,12 +94,12 @@ fn is_writable(path: &str) -> bool {
     access(path, AccessFlags::W_OK).is_ok()
 }
 
-fn is_file(path: &str) -> bool {
-    Path::new(path).is_file()
+fn is_dir(path: &str) -> bool {
+    Path::new(path).is_dir()
 }
 
-fn is_exe(path: &PathBuf) -> bool {
-    if let Ok(metadata) = fs::metadata(path) {
+fn is_exe(path: &Path) -> bool {
+    if let Ok(metadata) = path.metadata() {
         return metadata.is_file() && metadata.permissions().mode() & 0o111 != 0
     }
     false
@@ -359,17 +370,24 @@ fn print_usage() {
 }
 
 fn main() {
-    let sharun: PathBuf = env::current_exe().unwrap();
+    let sharun = env::current_exe().unwrap();
     let mut exec_args: Vec<String> = env::args().collect();
 
-    let mut sharun_dir = sharun.parent().unwrap().to_str().unwrap().to_string();
-    let lower_dir = &format!("{sharun_dir}/../");
-    if basename(&sharun_dir) == "bin" &&
-       is_file(&format!("{lower_dir}{SHARUN_NAME}")) {
-        sharun_dir = realpath(lower_dir)
+    let mut sharun_dir = realpath(&get_env_var("SHARUN_DIR"));
+    if sharun_dir.is_empty() || !(is_dir(&sharun_dir) &&
+        {
+            let sharun_dir_path = Path::new(&sharun_dir);
+            is_same_rootdir(sharun_dir_path, &sharun, &sharun_dir_path.join(SHARUN_NAME))
+        })
+    {
+        sharun_dir = sharun.parent().unwrap().to_str().unwrap().to_string();
+        let lower_dir = &format!("{sharun_dir}/../");
+        if basename(&sharun_dir) == "bin" &&
+            is_dir(&format!("{lower_dir}shared")) {
+            sharun_dir = realpath(lower_dir)
+        }
+        env::set_var("SHARUN_DIR", &sharun_dir)
     }
-
-    env::set_var("SHARUN_DIR", &sharun_dir);
 
     let bin_dir = &format!("{sharun_dir}/bin");
     let shared_dir = &format!("{sharun_dir}/shared");
@@ -630,8 +648,9 @@ fn main() {
             for dir in dirs {
                 let dir_path = &format!("{library_path}/{dir}");
                 if dir.starts_with("python") {
-                    add_to_env("PYTHONHOME", &sharun_dir);
-                    env::set_var("PYTHONDONTWRITEBYTECODE", "1")
+                    if !is_writable(&sharun_dir) {
+                        env::set_var("PYTHONDONTWRITEBYTECODE", "1")
+                    }
                 }
                 if dir.starts_with("perl") {
                     add_to_env("PERLLIB", dir_path)
@@ -780,7 +799,7 @@ fn main() {
                                     "GSETTINGS_SCHEMA_DIR", "glib-2.0/schemas")
                             }
                             "terminfo" => {
-                                env::set_var("TERMINFO",entry_path)
+                                env::set_var("TERMINFO", entry_path)
                             }
                             "file" => {
                                 let magic_file = &entry_path.join("misc/magic.mgc");
