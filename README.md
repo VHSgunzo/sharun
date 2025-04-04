@@ -165,7 +165,7 @@ This can be useful, for example, to use [ld-preload-open](https://github.com/fri
 |||
 |---|---|
 |`PATH` | `${SHARUN_DIR}/bin` |
-|`PYTHONHOME` and `PYTHONDONTWRITEBYTECODE` | `${SHARUN_DIR}/shared/$LIB/python*` |
+|`PYTHONDONTWRITEBYTECODE` (if $SHARUN_DIR is not writable) | `${SHARUN_DIR}/shared/$LIB/python*` |
 |`PERLLIB` | `${SHARUN_DIR}/shared/$LIB/perl*` |
 |`GCONV_PATH` | `${SHARUN_DIR}/shared/$LIB/gconv` |
 |`GIO_MODULE_DIR` | `${SHARUN_DIR}/shared/$LIB/gio/modules`|
@@ -192,7 +192,7 @@ This can be useful, for example, to use [ld-preload-open](https://github.com/fri
 |`GSETTINGS_SCHEMA_DIR` | `${SHARUN_DIR}/share/glib-2.0/schemas`|
 |`TERMINFO` | `${SHARUN_DIR}/share/terminfo`|
 |`MAGIC` | `${SHARUN_DIR}/share/file/misc/magic.mgc`|
-|`LIBTHAI_DICTDIR` | `${SHARUN_DIR}/share/libthai`|
+|`LIBTHAI_DICTDIR` | `${SHARUN_DIR}/share/libthai/thbrk.tri`|
 |||
 |---|---|
 |`FONTCONFIG_FILE` | `${SHARUN_DIR}/etc/fonts/fonts.conf`|
