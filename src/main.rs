@@ -98,6 +98,13 @@ fn is_dir(path: &str) -> bool {
     Path::new(path).is_dir()
 }
 
+fn is_file(path: &Path) -> bool {
+    if let Ok(metadata) = path.metadata() {
+        return metadata.is_file()
+    }
+    false
+}
+
 fn is_exe(path: &Path) -> bool {
     if let Ok(metadata) = path.metadata() {
         return metadata.is_file() && metadata.permissions().mode() & 0o111 != 0
@@ -109,7 +116,7 @@ fn which(executable: &str) -> Option<PathBuf> {
     if let Ok(path) = env::var("PATH") {
         for dir in path.split(':') {
             let full_path = Path::new(dir).join(executable);
-            if full_path.exists() && is_exe(&full_path) {
+            if is_exe(&full_path) {
                 return Some(full_path)
             }
         }
@@ -374,10 +381,12 @@ fn main() {
     let mut exec_args: Vec<String> = env::args().collect();
 
     let mut sharun_dir = realpath(&get_env_var("SHARUN_DIR"));
-    if sharun_dir.is_empty() || !(is_dir(&sharun_dir) &&
-        {
+    if sharun_dir.is_empty() || 
+        !(is_dir(&sharun_dir) && {
             let sharun_dir_path = Path::new(&sharun_dir);
-            is_same_rootdir(sharun_dir_path, &sharun, &sharun_dir_path.join(SHARUN_NAME))
+            let sharun_path = sharun_dir_path.join(SHARUN_NAME);
+            sharun_dir_path.join("shared").is_dir() && is_exe(&sharun_path) &&
+            is_same_rootdir(sharun_dir_path, &sharun, &sharun_path)
         })
     {
         sharun_dir = sharun.parent().unwrap().to_str().unwrap().to_string();
@@ -514,7 +523,7 @@ fn main() {
             if let Ok(dir) = Path::new(&sharun_dir).read_dir() {
                 for entry in dir.flatten() {
                     let path = entry.path();
-                    if path.is_file() {
+                    if is_file(&path) {
                         let name = entry.file_name();
                         let name = name.to_str().unwrap();
                         if name.ends_with(".desktop") {
@@ -679,7 +688,7 @@ fn main() {
                     env::set_var("GTK_DATA_PREFIX", &sharun_dir);
                     for entry in WalkDir::new(dir_path).into_iter().flatten() {
                         let path = entry.path();
-                        if path.is_file() && entry.file_name().to_string_lossy() == "immodules.cache" {
+                        if is_file(&path) && entry.file_name().to_string_lossy() == "immodules.cache" {
                             env::set_var("GTK_IM_MODULE_FILE", path);
                             break
                         }
@@ -730,7 +739,7 @@ fn main() {
                             env::set_var("GDK_PIXBUF_MODULEDIR", path);
                             is_loaders = true
                         }
-                        if name == "loaders.cache" && path.is_file() {
+                        if name == "loaders.cache" && is_file(&path) {
                             env::set_var("GDK_PIXBUF_MODULE_FILE", path);
                             is_loaders_cache = true
                         }
@@ -773,9 +782,10 @@ fn main() {
                                                 add_to_env(vk_env, vk_icd_dir);
                                             } else if let Ok(dir) = vk_icd_dir.read_dir() {
                                                 for entry in dir.flatten() {
-                                                    if entry.file_type().unwrap().is_file() &&
+                                                    let path = entry.path();
+                                                    if is_file(&path) &&
                                                         entry.file_name().to_string_lossy().contains("nvidia") {
-                                                        add_to_env(vk_env, entry.path())
+                                                        add_to_env(vk_env, path)
                                                     }
                                                 }
                                             }
