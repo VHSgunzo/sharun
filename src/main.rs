@@ -381,7 +381,7 @@ fn main() {
     let mut exec_args: Vec<String> = env::args().collect();
 
     let mut sharun_dir = realpath(&get_env_var("SHARUN_DIR"));
-    if sharun_dir.is_empty() || 
+    if sharun_dir.is_empty() ||
         !(is_dir(&sharun_dir) && {
             let sharun_dir_path = Path::new(&sharun_dir);
             let sharun_path = sharun_dir_path.join(SHARUN_NAME);
@@ -415,13 +415,20 @@ fn main() {
                 exit(1)
             }
     });
-    let arg0_path = arg0_dir.join(arg0_name);
 
-    let mut bin_name = if arg0_path.is_symlink() && arg0_path.canonicalize().unwrap() == sharun {
+    let arg0_path = arg0_dir.join(arg0_name);
+    let arg0_full_path = arg0_path.canonicalize().unwrap();
+    let arg0_full_path_name = arg0_full_path.file_name().unwrap().to_string_lossy().to_string();
+    let mut bin_name = if arg0_path.is_symlink() &&
+        arg0_full_path == Path::new(&sharun_dir).join(SHARUN_NAME) {
         arg0_name.into()
+    } else if arg0_path.is_symlink() && Path::new(&shared_bin).join(&arg0_full_path_name).exists() {
+        arg0_full_path_name
     } else {
-        basename(sharun.file_name().unwrap().to_str().unwrap())
+        sharun.file_name().unwrap().to_string_lossy().to_string()
     };
+    drop(arg0_dir);
+    drop(arg0_full_path);
 
     if bin_name == SHARUN_NAME {
         if !exec_args.is_empty() {
@@ -476,30 +483,36 @@ fn main() {
                 _ => {
                     bin_name = exec_args.remove(0);
                     let bin_path = PathBuf::from(bin_dir).join(&bin_name);
-                    if is_exe(&bin_path) &&
-                        (is_hardlink(&sharun, &bin_path) ||
-                        !Path::new(&shared_bin).join(&bin_name).exists() ||
-                        bin_path.canonicalize().unwrap() != sharun.canonicalize().unwrap())
-                    {
-                        add_to_env("PATH", bin_dir);
-                        match is_script(&bin_path) {
-                            Ok(true) => {
-                                if let Err(err) = exec_script(&bin_path, &exec_args) {
-                                    eprintln!("Error executing script: {err}");
-                                    exit(1);
+                    if let Ok(bin_full_path) = bin_path.canonicalize() {
+                        let bin_full_path_name = bin_full_path.file_name().unwrap().to_string_lossy().to_string();
+                        if bin_path.is_symlink() && Path::new(&shared_bin).join(&bin_full_path_name).exists() {
+                            bin_name = bin_full_path_name
+                        }
+                        if is_exe(&bin_full_path) &&
+                            (is_hardlink(&sharun, &bin_full_path) ||
+                            !Path::new(&shared_bin).join(&bin_name).exists() ||
+                            bin_full_path != sharun)
+                        {
+                            add_to_env("PATH", bin_dir);
+                            match is_script(&bin_path) {
+                                Ok(true) => {
+                                    if let Err(err) = exec_script(&bin_path, &exec_args) {
+                                        eprintln!("Error executing script: {err}");
+                                        exit(1);
+                                    }
                                 }
-                            }
-                            Ok(false) => {
-                                let err = Command::new(&bin_path)
-                                    .envs(env::vars())
-                                    .args(exec_args)
-                                    .exec();
-                                eprintln!("Error executing file {:?}: {err}", &bin_path);
-                                exit(1)
-                            }
-                            Err(err) => {
-                                eprintln!("Error reading file {:?}: {err}", &bin_path);
-                                exit(1)
+                                Ok(false) => {
+                                    let err = Command::new(&bin_path)
+                                        .envs(env::vars())
+                                        .args(exec_args)
+                                        .exec();
+                                    eprintln!("Error executing file {:?}: {err}", &bin_path);
+                                    exit(1)
+                                }
+                                Err(err) => {
+                                    eprintln!("Error reading file {:?}: {err}", &bin_path);
+                                    exit(1)
+                                }
                             }
                         }
                     }
@@ -562,7 +575,9 @@ fn main() {
         if get_env_var("ARGV0").is_empty() {
             env::set_var("ARGV0", &arg0)
         }
-        env::set_var("APPDIR", &sharun_dir);
+        if get_env_var("APPDIR").is_empty() {
+            env::set_var("APPDIR", &sharun_dir)
+        }
 
         let err = Command::new(app)
             .envs(env::vars())
