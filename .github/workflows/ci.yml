@@ -53,7 +53,7 @@ jobs:
 
       - name: Strip
         run: |
-          strip --target=elf64-little --strip-section-headers sharun-*
+          ls sharun-*|grep -v upx|xargs strip --target=elf64-little --strip-section-headers
 
       - name: AIO sharun x86_64
         run: |
