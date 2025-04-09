@@ -47,14 +47,16 @@ jobs:
           cross build --release --target aarch64-unknown-linux-musl --no-default-features
           mv target/aarch64-unknown-linux-musl/release/sharun sharun-aarch64-lite
 
-      - name: Strip
-        run: |
-          ls sharun-*|grep aarch64|xargs strip --target=elf64-little --strip-section-headers
-          ls sharun-*|grep x86_64|xargs strip --target=elf64-x86_64 --strip-section-headers
-
       - name: UPX
         run: |
           ls sharun-*|xargs -I {} upx -9 --best {} -o {}-upx
+
+      - name: Strip
+        run: |
+          (git clone https://github.com/aunali1/super-strip.git && cd super-strip
+          make
+          sudo mv -fv sstrip /usr/bin/)
+          sstrip sharun-*
 
       - name: AIO sharun x86_64
         run: |
