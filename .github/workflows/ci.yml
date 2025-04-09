@@ -47,13 +47,13 @@ jobs:
           cross build --release --target aarch64-unknown-linux-musl --no-default-features
           mv target/aarch64-unknown-linux-musl/release/sharun sharun-aarch64-lite
 
-      - name: Strip
-        run: |
-          strip --target=elf64-little --strip-section-headers sharun-*
-
       - name: UPX
         run: |
           ls sharun-*|xargs -I {} upx -9 --best {} -o {}-upx
+
+      - name: Strip
+        run: |
+          strip --target=elf64-little --strip-section-headers sharun-*
 
       - name: AIO sharun x86_64
         run: |
