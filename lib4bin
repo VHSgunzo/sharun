@@ -1029,6 +1029,14 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                                                                                                 fi
                                                                                         done
                                                                                 fi ;;
+                                                                            */gconv/*.so)
+                                                                                sys_gconv_modules_file="$(dirname $lib_src_pth)/gconv-modules"
+                                                                                dst_gconv_modules_file="$(dirname "$lib_dst_pth")/gconv-modules"
+                                                                                if [[ -f "$sys_gconv_modules_file" &&  ! -f "$dst_gconv_modules_file" ]]
+                                                                                    then
+                                                                                        hook_msg "copy gconv-modules file..."
+                                                                                        try_cp "$sys_gconv_modules_file" "$dst_gconv_modules_file"
+                                                                                fi ;;
                                                                         esac
                                                                 fi
                                                                 LIBRARIES["$lib_dst_pth"]=1
