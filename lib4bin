@@ -1030,7 +1030,7 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                                                                                         done
                                                                                 fi ;;
                                                                             */gconv/*.so)
-                                                                                sys_gconv_modules_file="$(dirname $lib_src_pth)/gconv-modules"
+                                                                                sys_gconv_modules_file="$(dirname "$lib_src_pth")/gconv-modules"
                                                                                 dst_gconv_modules_file="$(dirname "$lib_dst_pth")/gconv-modules"
                                                                                 if [[ -f "$sys_gconv_modules_file" &&  ! -f "$dst_gconv_modules_file" ]]
                                                                                     then
