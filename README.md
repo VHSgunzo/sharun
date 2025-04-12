@@ -183,6 +183,7 @@ This can be useful, for example, to use [ld-preload-open](https://github.com/fri
 |`SPA_PLUGIN_DIR` | `${SHARUN_DIR}/shared/$LIB/spa-*`|
 |`PIPEWIRE_MODULE_DIR` | `${SHARUN_DIR}/shared/$LIB/pipewire-*`|
 |`GI_TYPELIB_PATH` | `${SHARUN_DIR}/shared/$LIB/girepository-*`|
+|`GBM_BACKENDS_PATH` | `${SHARUN_DIR}/shared/$LIB/gbm`|
 |||
 |---|---|
 |`XDG_DATA_DIRS` | `${SHARUN_DIR}/share`|
