@@ -671,10 +671,8 @@ fn main() {
             }).collect();
             for dir in dirs {
                 let dir_path = &format!("{library_path}/{dir}");
-                if dir.starts_with("python") {
-                    if !is_writable(&sharun_dir) {
-                        env::set_var("PYTHONDONTWRITEBYTECODE", "1")
-                    }
+                if dir.starts_with("python") && !is_writable(&sharun_dir) {
+                    env::set_var("PYTHONDONTWRITEBYTECODE", "1")
                 }
                 if dir.starts_with("perl") {
                     add_to_env("PERLLIB", dir_path)
@@ -706,7 +704,7 @@ fn main() {
                     env::set_var("GTK_DATA_PREFIX", &sharun_dir);
                     for entry in WalkDir::new(dir_path).into_iter().flatten() {
                         let path = entry.path();
-                        if is_file(&path) && entry.file_name().to_string_lossy() == "immodules.cache" {
+                        if is_file(path) && entry.file_name().to_string_lossy() == "immodules.cache" {
                             env::set_var("GTK_IM_MODULE_FILE", path);
                             break
                         }
@@ -757,7 +755,7 @@ fn main() {
                             env::set_var("GDK_PIXBUF_MODULEDIR", path);
                             is_loaders = true
                         }
-                        if name == "loaders.cache" && is_file(&path) {
+                        if name == "loaders.cache" && is_file(path) {
                             env::set_var("GDK_PIXBUF_MODULE_FILE", path);
                             is_loaders_cache = true
                         }
