@@ -691,6 +691,9 @@ fn main() {
                 if dir == "dri" {
                     env::set_var("LIBGL_DRIVERS_PATH", dir_path)
                 }
+                if dir == "gbm" {
+                    env::set_var("GBM_BACKENDS_PATH", dir_path)
+                }
                 if dir.starts_with("spa-") {
                     env::set_var("SPA_PLUGIN_DIR", dir_path)
                 }
