@@ -210,6 +210,7 @@ This can be useful, for example, to use [ld-preload-open](https://github.com/fri
 * [WayVR Dashboard](https://github.com/olekolek1000/wayvr-dashboard)
 * [interstellar](https://github.com/jwr1/interstellar)
 * [LibreSprite](https://github.com/LibreSprite/LibreSprite)
+* [QDiskInfo](https://github.com/edisionnano/QDiskInfo)
 
 ## References
 * [userland-execve](https://crates.io/crates/userland-execve)
