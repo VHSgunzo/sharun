@@ -47,6 +47,7 @@ cp ./target/$(uname -m)-unknown-linux-musl/release/sharun .
     SHARUN_WORKING_DIR=/path    Specifies the path to the working directory
     SHARUN_ALLOW_SYS_VKICD=1    Enables breaking system vulkan/icd.d for vulkan loader
     SHARUN_ALLOW_LD_PRELOAD=1   Enables breaking LD_PRELOAD env variable
+    SHARUN_PRINTENV=1           Print environment variables to stderr
     SHARUN_LDNAME=ld.so         Specifies the name of the interpreter
     SHARUN_DIR                  Sharun directory
 ```
@@ -184,6 +185,7 @@ This can be useful, for example, to use [ld-preload-open](https://github.com/fri
 |`PIPEWIRE_MODULE_DIR` | `${SHARUN_DIR}/shared/$LIB/pipewire-*`|
 |`GI_TYPELIB_PATH` | `${SHARUN_DIR}/shared/$LIB/girepository-*`|
 |`GBM_BACKENDS_PATH` | `${SHARUN_DIR}/shared/$LIB/gbm`|
+|`XTABLES_LIBDIR` | `${SHARUN_DIR}/shared/$LIB/xtables`|
 |||
 |---|---|
 |`XDG_DATA_DIRS` | `${SHARUN_DIR}/share`|
@@ -196,7 +198,7 @@ This can be useful, for example, to use [ld-preload-open](https://github.com/fri
 |`LIBTHAI_DICTDIR` | `${SHARUN_DIR}/share/libthai/thbrk.tri`|
 |||
 |---|---|
-|`FONTCONFIG_FILE` | `${SHARUN_DIR}/etc/fonts/fonts.conf`|
+|`FONTCONFIG_FILE` (if no /etc/fonts/fonts.conf) | `${SHARUN_DIR}/etc/fonts/fonts.conf`|
 
 ## Projects that use sharun:
 * [SoarPkgs](https://github.com/pkgforge/soarpkgs)

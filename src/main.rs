@@ -372,6 +372,7 @@ fn print_usage() {
     SHARUN_WORKING_DIR=/path    Specifies the path to the working directory
     SHARUN_ALLOW_SYS_VKICD=1    Enables breaking system vulkan/icd.d for vulkan loader
     SHARUN_ALLOW_LD_PRELOAD=1   Enables breaking LD_PRELOAD env variable
+    SHARUN_PRINTENV=1           Print environment variables to stderr
     SHARUN_LDNAME=ld.so         Specifies the name of the interpreter
     SHARUN_DIR                  Sharun directory");
 }
@@ -692,6 +693,9 @@ fn main() {
                 if dir == "gbm" {
                     env::set_var("GBM_BACKENDS_PATH", dir_path)
                 }
+                if dir == "xtables" {
+                    env::set_var("XTABLES_LIBDIR", dir_path)
+                }
                 if dir.starts_with("spa-") {
                     env::set_var("SPA_PLUGIN_DIR", dir_path)
                 }
@@ -850,7 +854,7 @@ fn main() {
                         match name.to_str().unwrap() {
                             "fonts" => {
                                 let fonts_conf = entry_path.join("fonts.conf");
-                                if fonts_conf.exists() {
+                                if !Path::new("/etc/fonts/fonts.conf").exists() && fonts_conf.exists() {
                                     env::set_var("FONTCONFIG_FILE", fonts_conf)
                                 }
                             }
@@ -878,6 +882,13 @@ fn main() {
 
     for var_name in unset_envs {
         env::remove_var(var_name)
+    }
+
+    if get_env_var("SHARUN_PRINTENV") == "1" {
+        env::remove_var("SHARUN_PRINTENV");
+        for (k, v) in env::vars() {
+            eprintln!("{k}={v}")
+        }
     }
 
     cfg_if! {
