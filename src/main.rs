@@ -850,7 +850,8 @@ fn main() {
                         match name.to_str().unwrap() {
                             "fonts" => {
                                 let fonts_conf = entry_path.join("fonts.conf");
-                                if fonts_conf.exists() {
+                                let sys_fonts_conf = PathBuf::from("/etc/fonts/fonts.conf");
+                                if fonts_conf.exists() && ! sys_fonts_conf.exists() {
                                     env::set_var("FONTCONFIG_FILE", fonts_conf)
                                 }
                             }
