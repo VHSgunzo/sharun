@@ -191,7 +191,7 @@ get_libs() {
     [ -n "$2" ] && needed_libs="$2"||\
     needed_libs="$(print_needed "$1")"
     libs+="$(([ -z "$needed_libs" ]||\
-        grep -E "$(tr '\n' '|'<<<"$needed_libs"|sed 's|\||$\||g')libpthread.so.0$"<<<"$ALL_LIBS" ; \
+        grep -E "$(tr '\n' '|'<<<"$needed_libs"|sed 's|\||$\||g')libpthread.so.[0-9]|libdl.so.[0-9]|librt.so.[0-9]|libm.so.[0-9]$"<<<"$ALL_LIBS" ; \
         ldd_libs "$1")|sort -u)"
     libs="$(echo -e "$libs"|sort -u)"
     [ -n "$IS_ELF32" ] && \
