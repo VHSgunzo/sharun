@@ -892,9 +892,6 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                                                                                         try_mkdir "$dst_giom_dir"
                                                                                         try_cp "$sys_giom_cache" "$dst_giom_cache"
                                                                                 fi ;;
-                                                                            */libgio-*.so)
-                                                                                hook_msg "removing full path to gio-launch-desktop from "$lib_dst_pth"..."
-                                                                                sed -i 's|/usr/lib|././/lib|g' "$lib_dst_pth" ;;
                                                                             */libglib-*.so*)
                                                                                 glib="$(grep -o 'glib-.*\.so'<<<"$lib_src_name"|sed "s|\.so$||")"
                                                                                 sys_glib_schemas="/usr/share/$glib/schemas"
