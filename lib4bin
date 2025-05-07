@@ -874,11 +874,11 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                                                                 try_remove_fullrpath "$lib_dst_pth"
                                                                 if [ "$WITH_HOOKS" == 1 ]
                                                                     then
-                                                                        if [ ! -e "$dst_dir/bin/gio-launch-desktop" ] && [ ! -e "$dst_dir/bin/xdg-open" ]
+                                                                        if [ ! -f "$dst_dir/bin/xdg-open" ]
                                                                             then
-                                                                                hook_msg "adding xdg-open and gio-launch-desktop wrapper..."
+                                                                                hook_msg "adding xdg-open wrapper..."
+                                                                                try_mkdir "$dst_dir/bin"
                                                                                 echo "$XDG_OPEN_WRAPPER" > "$dst_dir/bin/xdg-open"
-                                                                                try_ln 'xdg-open' "$dst_dir/bin/gio-launch-desktop"
                                                                                 chmod $varg +x "$dst_dir/bin/xdg-open"
                                                                         fi
                                                                         case "$lib_dst_pth" in
@@ -891,6 +891,12 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                                                                                         hook_msg "copy giomodule.cache..."
                                                                                         try_mkdir "$dst_giom_dir"
                                                                                         try_cp "$sys_giom_cache" "$dst_giom_cache"
+                                                                                fi ;;
+                                                                            */libgio-*.so*)
+                                                                                if [ ! -f "$dst_dir/bin/gio-launch-desktop" ]
+                                                                                    then
+                                                                                    hook_msg "make gio-launch-desktop wrapper..."
+                                                                                    try_ln 'xdg-open' "$dst_dir/bin/gio-launch-desktop"
                                                                                 fi ;;
                                                                             */libglib-*.so*)
                                                                                 glib="$(grep -o 'glib-.*\.so'<<<"$lib_src_name"|sed "s|\.so$||")"
