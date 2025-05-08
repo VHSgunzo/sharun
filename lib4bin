@@ -54,8 +54,6 @@ APPDIR="${APPDIR:-${SHARUN_DIR:-$(dirname "$CURRENTDIR")}}"
 PATH="$(echo "$PATH" | sed "s|$CURRENTDIR||g")"
 export PATH
 
-[ "$(basename "$0")" = "gio-launch-desktop" ] && shift
-
 problematic_vars="BABL_PATH GBM_BACKENDS_PATH GCONV_PATH GDK_PIXBUF_MODULEDIR \
 	GDK_PIXBUF_MODULE_FILE GEGL_PATH GIO_MODULE_DIR GI_TYPELIB_PATH \
 	GSETTINGS_SCHEMA_DIR GST_PLUGIN_PATH GST_PLUGIN_SCANNER GST_PLUGIN_SYSTEM_PATH \
@@ -71,7 +69,12 @@ for var in $problematic_vars; do
 	fi
 done
 
-exec xdg-open "$@"'
+if [ "$(basename "$0")" = "gio-launch-desktop" ]; then
+	export GIO_LAUNCHED_DESKTOP_FILE_PID=$$
+	exec "$@"
+else
+	exec xdg-open "$@"
+fi'
 
 usage() {
     echo -e "[ Usage ]: lib4bin [OPTIONS] /path/executable -- [STRACE MODE EXEC ARGS]
