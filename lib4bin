@@ -361,7 +361,7 @@ is_url() {
 find_py_unneeded() {
     OLD_IFS="$IFS"
     IFS=$'\n'
-    PY_UNNEEDED_LIST=($(find "$1" -type f -iname '*.rst' -o -iname '*.cmd' \
+    PY_UNNEEDED_LIST=($(find "$1" -type f -iname '*.cmd' \
         -o -iname '*.md' -o -name 'LICENSE*' -o -iname '*.ps1' \
         -o -iname '*.bat' -o -iname '*.exe' -o -iname '*.whl'))
     IFS="$OLD_IFS"
