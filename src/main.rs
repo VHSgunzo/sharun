@@ -640,6 +640,10 @@ fn main() {
 
     #[cfg(feature = "setenv")]
     {
+        let gio_launch_desktop = PathBuf::from(&bin_dir).join("gio-launch-desktop");
+        if is_exe(&gio_launch_desktop) {
+            env::set_var("GIO_LAUNCH_DESKTOP", gio_launch_desktop)
+        }
         if let Ok(dir) = PathBuf::from(&library_path).read_dir() {
             for entry in dir.flatten() {
                 let entry_path = entry.path();
