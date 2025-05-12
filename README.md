@@ -199,6 +199,8 @@ This can be useful, for example, to use [ld-preload-open](https://github.com/fri
 |||
 |---|---|
 |`FONTCONFIG_FILE` (if no /etc/fonts/fonts.conf) | `${SHARUN_DIR}/etc/fonts/fonts.conf`|
+|---|---|
+|`GIO_LAUNCH_DESKTOP` | `${SHARUN_DIR}/bin/gio-launch-desktop`|
 
 ## Projects that use sharun:
 * [SoarPkgs](https://github.com/pkgforge/soarpkgs)
