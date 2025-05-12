@@ -45,6 +45,37 @@ WRAPPE_CLEANUP=${WRAPPE_CLEANUP:=1}
 MAX_INTERP_LEN=${MAX_INTERP_LEN:=256}
 PATCH_INTERPRETER=${PATCH_INTERPRETER:=0}
 
+XDG_OPEN_WRAPPER='#!/bin/sh
+# xdg-open and gio-launch-desktop wrapper for sharun
+# unsets env variables that cause issues to child processes
+
+CURRENTDIR="$(readlink -f "$(dirname "$0")")"
+APPDIR="${APPDIR:-${SHARUN_DIR:-$(dirname "$CURRENTDIR")}}"
+PATH="$(echo "$PATH" | sed "s|$CURRENTDIR||g")"
+export PATH
+
+problematic_vars="BABL_PATH GBM_BACKENDS_PATH GCONV_PATH GDK_PIXBUF_MODULEDIR \
+	GDK_PIXBUF_MODULE_FILE GEGL_PATH GIO_MODULE_DIR GI_TYPELIB_PATH \
+	GSETTINGS_SCHEMA_DIR GST_PLUGIN_PATH GST_PLUGIN_SCANNER GST_PLUGIN_SYSTEM_PATH \
+	GST_PLUGIN_SYSTEM_PATH_1_0 GTK_DATA_PREFIX GTK_EXE_PREFIX GTK_IM_MODULE_FILE \
+	GTK_PATH LIBDECOR_PLUGIN_DIR LIBGL_DRIVERS_PATH PERLLIB PIPEWIRE_MODULE_DIR \
+	QT_PLUGIN_PATH SPA_PLUGIN_DIR TCL_LIBRARY TK_LIBRARY XTABLES_LIBDIR"
+
+for var in $problematic_vars; do
+	checkvar="$(printenv "$var" 2>/dev/null)"
+	if [ -n "$checkvar" ] && echo "$checkvar" | grep -q "$APPDIR"; then
+		unset "$var"
+		>&2 echo "unset $var to prevent issues"
+	fi
+done
+
+if [ "$(basename "$0")" = "gio-launch-desktop" ]; then
+	export GIO_LAUNCHED_DESKTOP_FILE_PID=$$
+	exec "$@"
+else
+	exec xdg-open "$@"
+fi'
+
 usage() {
     echo -e "[ Usage ]: lib4bin [OPTIONS] /path/executable -- [STRACE MODE EXEC ARGS]
 
@@ -846,6 +877,13 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                                                                 try_remove_fullrpath "$lib_dst_pth"
                                                                 if [ "$WITH_HOOKS" == 1 ]
                                                                     then
+                                                                        if [ ! -f "$dst_dir/bin/xdg-open" ]
+                                                                            then
+                                                                                hook_msg "adding xdg-open wrapper..."
+                                                                                try_mkdir "$dst_dir/bin"
+                                                                                echo "$XDG_OPEN_WRAPPER" > "$dst_dir/bin/xdg-open"
+                                                                                chmod $varg +x "$dst_dir/bin/xdg-open"
+                                                                        fi
                                                                         case "$lib_dst_pth" in
                                                                             */gio/modules/*.so)
                                                                                 sys_giom_cache="${lib_src_pth/modules\/*\.so/modules\/giomodule.cache}"
@@ -856,6 +894,12 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                                                                                         hook_msg "copy giomodule.cache..."
                                                                                         try_mkdir "$dst_giom_dir"
                                                                                         try_cp "$sys_giom_cache" "$dst_giom_cache"
+                                                                                fi ;;
+                                                                            */libgio-*.so*)
+                                                                                if [ ! -f "$dst_dir/bin/gio-launch-desktop" ]
+                                                                                    then
+                                                                                    hook_msg "make gio-launch-desktop wrapper..."
+                                                                                    try_ln 'xdg-open' "$dst_dir/bin/gio-launch-desktop"
                                                                                 fi ;;
                                                                             */libglib-*.so*)
                                                                                 glib="$(grep -o 'glib-.*\.so'<<<"$lib_src_name"|sed "s|\.so$||")"
