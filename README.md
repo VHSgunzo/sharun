@@ -215,6 +215,7 @@ This can be useful, for example, to use [ld-preload-open](https://github.com/fri
 * [QDiskInfo](https://github.com/edisionnano/QDiskInfo)
 * [mangojuice](https://github.com/radiolamp/mangojuice)
 * [CPU-X](https://github.com/TheTumultuousUnicornOfDarkness/CPU-X)
+* [eden](https://git.eden-emu.dev/eden-emu/eden)
 
 ## References
 * [userland-execve](https://crates.io/crates/userland-execve)
