@@ -960,6 +960,14 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                                                                                         try_mkdir "$dst_xcb_dir"
                                                                                         try_cp -T "$sys_xcb_dir" "$dst_xcb_dir"
                                                                                 fi ;;
+                                                                            */libgbm.so*)
+                                                                                sys_gbm_dir="$(dirname "$lib_src_pth")/gbm"
+                                                                                dst_gbm_dir="$(dirname "$lib_dst_pth")/gbm"
+                                                                                if [[ -d "$sys_gbm_dir" && ! -d "$dst_gbm_dir" ]]
+                                                                                    then
+                                                                                        hook_msg "copy gbm lib dir..."
+                                                                                        try_cp -T "$sys_gbm_dir" "$dst_gbm_dir"
+                                                                                fi ;;
                                                                             */libEGL_mesa.so*)
                                                                                 sys_glvnd_dir='/usr/share/glvnd/egl_vendor.d'
                                                                                 dst_glvnd_dir="$dst_dir/share/glvnd/egl_vendor.d"
