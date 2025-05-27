@@ -942,6 +942,14 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                                                                                         try_mkdir "$dst_dir/etc/fonts"
                                                                                         try_cp "$sys_fcfg" "$dst_fcfg"
                                                                                 fi ;;
+                                                                            */libfolks*.so*)
+                                                                                sys_folks_dir="$(dirname "$lib_src_pth")/folks"
+                                                                                dst_folks_dir="$(dirname "$lib_dst_pth")/folks"
+                                                                                if [[ -d "$sys_folks_dir" && ! -d "$dst_folks_dir" ]]
+                                                                                    then
+                                                                                        hook_msg "copy folks lib dir..."
+                                                                                        try_cp -T "$sys_folks_dir" "$dst_folks_dir"
+                                                                                fi ;;
                                                                             */libthai*.so*)
                                                                                 sys_libthai_dir='/usr/share/libthai'
                                                                                 dst_libthai_dir="$dst_dir/share/libthai"
