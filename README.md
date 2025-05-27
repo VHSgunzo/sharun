@@ -186,12 +186,13 @@ This can be useful, for example, to use [ld-preload-open](https://github.com/fri
 |`GI_TYPELIB_PATH` | `${SHARUN_DIR}/shared/$LIB/girepository-*`|
 |`GBM_BACKENDS_PATH` | `${SHARUN_DIR}/shared/$LIB/gbm`|
 |`XTABLES_LIBDIR` | `${SHARUN_DIR}/shared/$LIB/xtables`|
+|`FOLKS_BACKEND_PATH` | `${SHARUN_DIR}/shared/$LIB/folks/*/backends`|
 |||
 |---|---|
 |`XDG_DATA_DIRS` | `${SHARUN_DIR}/share`|
 |`VK_DRIVER_FILES` | `${SHARUN_DIR}/share/vulkan/icd.d`|
 |`__EGL_VENDOR_LIBRARY_DIRS` | `${SHARUN_DIR}/share/glvnd/egl_vendor.d`|
-|`XKB_CONFIG_ROOT` | `${SHARUN_DIR}/share/X11/xkb`|
+|`XKB_CONFIG_ROOT` (if no /usr/share/X11/xkb) | `${SHARUN_DIR}/share/X11/xkb`|
 |`GSETTINGS_SCHEMA_DIR` | `${SHARUN_DIR}/share/glib-2.0/schemas`|
 |`TERMINFO` | `${SHARUN_DIR}/share/terminfo`|
 |`MAGIC` | `${SHARUN_DIR}/share/file/misc/magic.mgc`|

@@ -208,7 +208,7 @@ fn get_elf(path: &String, is_elf32: bool) -> Result<Vec<u8>> {
     if is_elf32 {
         let mut headers_bytes = Vec::new();
         file.read_to_end(&mut headers_bytes)?;
-        Ok(headers_bytes.clone())
+        Ok(headers_bytes)
     } else {
         let mut elf_header_raw = [0; 64];
         file.read_exact(&mut elf_header_raw)?;
@@ -219,7 +219,7 @@ fn get_elf(path: &String, is_elf32: bool) -> Result<Vec<u8>> {
         let mut headers_bytes = vec![0; required_bytes as usize];
         std::io::Seek::seek(&mut file, std::io::SeekFrom::Start(0))?;
         file.read_exact(&mut headers_bytes)?;
-        Ok(headers_bytes.clone())
+        Ok(headers_bytes)
     }
 }
 
@@ -718,6 +718,15 @@ fn main() {
                         }
                     }
                 }
+                if dir == "folks" {
+                    for entry in WalkDir::new(dir_path).into_iter().flatten() {
+                        let path = entry.path();
+                        if path.is_dir() && entry.file_name().to_string_lossy() == "backends" {
+                            env::set_var("FOLKS_BACKEND_PATH", path);
+                            break
+                        }
+                    }
+                }
                 if dir.starts_with("qt") {
                     let qt_conf = &format!("{bin_dir}/qt.conf");
                     let plugins = &format!("{dir_path}/plugins");
@@ -819,7 +828,7 @@ fn main() {
                             }
                             "X11" => {
                                 let xkb = &entry_path.join("xkb");
-                                if xkb.exists() {
+                                if !Path::new("/usr/share/X11/xkb").exists() && xkb.exists() {
                                     env::set_var("XKB_CONFIG_ROOT", xkb)
                                 }
                             }
@@ -970,7 +979,7 @@ fn main() {
         drop(elf_bytes);
         let envs: Vec<CString> = env::vars()
             .map(|(key, value)| CString::new(
-                format!("{}={}", key, value)
+                format!("{key}={value}")
         ).unwrap()).collect();
 
         userland_execve::exec(
