@@ -49,9 +49,10 @@ XDG_OPEN_WRAPPER='#!/bin/sh
 # xdg-open and gio-launch-desktop wrapper for sharun
 # unsets env variables that cause issues to child processes
 
-CURRENTDIR="$(readlink -f "$(dirname "$0")")"
-APPDIR="${APPDIR:-${SHARUN_DIR:-$(dirname "$CURRENTDIR")}}"
-PATH="$(echo "$PATH" | sed "s|$CURRENTDIR||g")"
+CURRENTDIR="$(cd "${0%/*}" && echo "$PWD")"
+APPDIR="${APPDIR:-${SHARUN_DIR:-${CURRENTDIR%/*}}}"
+PATH="${PATH#$CURRENTDIR:}"
+PATH="${PATH%:$CURRENTDIR}"
 export PATH
 
 problematic_vars="BABL_PATH GBM_BACKENDS_PATH GCONV_PATH GDK_PIXBUF_MODULEDIR \
@@ -62,14 +63,19 @@ problematic_vars="BABL_PATH GBM_BACKENDS_PATH GCONV_PATH GDK_PIXBUF_MODULEDIR \
 	QT_PLUGIN_PATH SPA_PLUGIN_DIR TCL_LIBRARY TK_LIBRARY XTABLES_LIBDIR"
 
 for var in $problematic_vars; do
-	checkvar="$(printenv "$var" 2>/dev/null)"
-	if [ -n "$checkvar" ] && echo "$checkvar" | grep -q "$APPDIR"; then
-		unset "$var"
-		>&2 echo "unset $var to prevent issues"
-	fi
+	eval checkvar="\$$var"
+	case "$checkvar" in
+		'')
+			continue
+			;;
+		"$APPDIR"/*)
+			unset "$var"
+			>&2 echo "unset $var to prevent issues"
+			;;
+	esac
 done
 
-if [ "$(basename "$0")" = "gio-launch-desktop" ]; then
+if [ "${0##*/}" = "gio-launch-desktop" ]; then
 	export GIO_LAUNCHED_DESKTOP_FILE_PID=$$
 	exec "$@"
 else
