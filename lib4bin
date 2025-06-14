@@ -960,7 +960,7 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                                                                                         try_cp -T "$sys_libthai_dir" "$dst_libthai_dir"
                                                                                 fi ;;
                                                                             */libxkbcommon*.so*)
-                                                                                sys_xcb_dir='/usr/share/X11/xkb'
+                                                                                sys_xcb_dir="$(readlink -f /usr/share/X11/xkb)"
                                                                                 dst_xcb_dir="$dst_dir/share/X11/xkb"
                                                                                 if [[ -d "$sys_xcb_dir" && ! -d "$dst_xcb_dir" ]]
                                                                                     then
