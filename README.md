@@ -205,7 +205,7 @@ This can be useful, for example, to use [ld-preload-open](https://github.com/fri
 
 ## Projects that use sharun:
 * [SoarPkgs](https://github.com/pkgforge/soarpkgs)
-* [pelfCreator](https://github.com/xplshn/pelf/blob/pelf-ng/pelfCreator)
+* [pelfCreator](https://pelf.xplshn.com.ar/docs/tooling/#pelfCreator:~:text=only%20the%20AppDir.-,%2D%2Dsharun,-%3Cbinaries%3E%3A%20Processes)
 * [AppBundleHUB](https://github.com/xplshn/AppBundleHUB)
 * [AnyLinux-AppImages](https://github.com/pkgforge-dev/Anylinux-AppImages)
 * [RMG](https://github.com/Rosalie241/RMG)
