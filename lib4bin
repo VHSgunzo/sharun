@@ -1248,7 +1248,11 @@ for dst_dir in "${!DST_DIRS[@]}"
         src_dir="${dst_dir%/shared}"
         if [[ "$WITH_WRAPPE" == 1 && -x "$src_dir/sharun" ]]
             then
-                src_bins=($(find_exe "$src_dir/bin/" -printf "%f\n"))
+                src_bins=(
+                    $(find_exe "$src_dir/bin/" \
+                        -not -name 'xdg-open' -not -name 'gio-launch-desktop' \
+                    -printf "%f\n")
+                )
                 if [ -n "$src_bins" ]
                     then
                         if [ "${#src_bins[@]}" == 1 ]
