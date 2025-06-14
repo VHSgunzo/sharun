@@ -164,7 +164,8 @@ check_deps() {
 }
 
 try_strip() {
-    if [[ "$STRIP" == 1 && ! "$FILE_INFO" =~ 'no section header' ]]
+    if [[ "$STRIP" == 1 && ! "$FILE_INFO" =~ 'no section header' ]] \
+    && [[ "$1" != */python3.1[2-9] ]]  ## FIXME a strange python 3.12+ bug: symbol lookup error: python: undefined symbol: , version
         then
             info_msg "$YELLOW[ STRIP ]: $BLUE[$1]"
             strip -s -R .comment --strip-unneeded "$1"
