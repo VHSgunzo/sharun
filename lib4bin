@@ -843,7 +843,7 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                                                         lib_src_name="$(basename "$lib_src_pth")"
                                                         grep -qE '/lib32|/i386-linux-gnu|/arm-linux-gnu'<<<"$lib_src_dirname_pth" && \
                                                             lib_dir="lib32"||lib_dir="lib"
-                                                        lib_dst_dir_pth="${dst_dir_pth}/${lib_dir}$(sed \
+                                                        lib_dst_dir_pth="${dst_dir_pth}/${lib_dir}/$(sed \
                                                             "s|$dst_dir||;s|/shared||;s|^/usr||;s|^/opt||;s|^/lib64||;s|^/lib32||;s|^/lib||;s|^/.*-linux-gnu||"<<<"$lib_src_dirname_pth")"
                                                         [ -n "$lib_src_real_name" ] && \
                                                             lib_dst_pth="$lib_dst_dir_pth/$lib_src_real_name"||\
