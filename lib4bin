@@ -301,6 +301,13 @@ try_cd() {
     cd "$1"||exit 1
 }
 
+get_lib_dst_dir_pth() {
+    local dst_dir_pth="$1" lib_dir="$2" lib_src_dirname_pth="$3"
+    echo "${dst_dir_pth}/${lib_dir}$(sed -E \
+    "s|$dst_dir||;s|/shared||;s|^/usr||;s|^/opt||;s|^/lib(64\|32)?||;s|^/[^/]*-linux-gnu||"\
+    <<<"$lib_src_dirname_pth")"
+}
+
 get_relative_path() {
     local start_dir="$1"
     local target_dir="$2"
@@ -843,8 +850,7 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                                                         lib_src_name="$(basename "$lib_src_pth")"
                                                         grep -qE '/lib32|/i386-linux-gnu|/arm-linux-gnu'<<<"$lib_src_dirname_pth" && \
                                                             lib_dir="lib32"||lib_dir="lib"
-                                                        lib_dst_dir_pth="${dst_dir_pth}/${lib_dir}$(sed \
-                                                            "s|$dst_dir||;s|/shared||;s|^/usr||;s|^/opt||;s|^/lib64||;s|^/lib32||;s|^/lib||;s|^/.*-linux-gnu||"<<<"$lib_src_dirname_pth")"
+                                                        lib_dst_dir_pth="$(get_lib_dst_dir_pth "$dst_dir_pth" "$lib_dir" "$lib_src_dirname_pth")"
                                                         [ -n "$lib_src_real_name" ] && \
                                                             lib_dst_pth="$lib_dst_dir_pth/$lib_src_real_name"||\
                                                             lib_dst_pth="$lib_dst_dir_pth/$lib_src_name"
@@ -866,8 +872,19 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                                                         try_cp_exe "$lib_src_pth" "$lib_dst_pth"
                                                         if [[ -n "$lib_src_real_name" && "$lib_src_name" != "$lib_src_real_name" ]]
                                                             then
-                                                                (try_cd "$lib_dst_dir_pth"
-                                                                try_ln "$lib_src_real_name" "$lib_src_name")||exit 1
+                                                                lib_src_rel_pth="$(readlink "$lib_src_pth")"
+                                                                (if [[ "$(dirname "$lib_src_rel_pth")" =~ ^\. ]]
+                                                                    then
+                                                                        lib_dst_dir_rel_pth="$(get_lib_dst_dir_pth "$dst_dir_pth" "$lib_dir" \
+                                                                            "$(readlink -f "$(dirname "$lib_src_pth")")")"
+                                                                        try_mkdir "$lib_dst_dir_rel_pth"
+                                                                        try_cd "$lib_dst_dir_rel_pth"
+                                                                        try_ln "$lib_src_rel_pth" "$lib_src_name"
+                                                                    else
+                                                                        try_cd "$lib_dst_dir_pth"
+                                                                        try_ln "$lib_src_real_name" "$lib_src_name"
+                                                                fi)||exit 1
+
                                                         fi
                                                         if [[ "${LIBRARIES["$lib_dst_pth"]}" != 1 ]]
                                                             then

@@ -181,6 +181,7 @@ This can be useful, for example, to use [ld-preload-open](https://github.com/fri
 |`LIBDECOR_PLUGIN_DIR` | `${SHARUN_DIR}/shared/$LIB/libdecor/plugins-1`|
 |`GTK_IM_MODULE_FILE` | `${SHARUN_DIR}/shared/$LIB/gtk-*/*/immodules.cache`|
 |`LIBGL_DRIVERS_PATH` | `${SHARUN_DIR}/shared/$LIB/dri`|
+|`LIBVA_DRIVERS_PATH` | `${SHARUN_DIR}/shared/$LIB/dri`|
 |`SPA_PLUGIN_DIR` | `${SHARUN_DIR}/shared/$LIB/spa-*`|
 |`PIPEWIRE_MODULE_DIR` | `${SHARUN_DIR}/shared/$LIB/pipewire-*`|
 |`GI_TYPELIB_PATH` | `${SHARUN_DIR}/shared/$LIB/girepository-*`|
