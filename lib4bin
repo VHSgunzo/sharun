@@ -963,7 +963,7 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                                                                                         hook_msg "copy glycin-loaders config..."
                                                                                         try_mkdir "$dst_glycin_conf_dir"
                                                                                         try_cp -T "$sys_glycin_conf_dir" "$dst_glycin_conf_dir"
-                                                                                        sed -i 's|/usr/lib/.*/||g' "$dst_glycin_conf_dir"/*/*/*.conf
+                                                                                        sed -i 's|/usr/lib.*/||g' "$dst_glycin_conf_dir"/*/*/*.conf
                                                                                 fi ;;
                                                                             */libfontconfig.so*)
                                                                                 sys_fcfg='/etc/fonts/fonts.conf'
