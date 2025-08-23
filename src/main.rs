@@ -796,6 +796,7 @@ fn main() {
             if let Ok(dir) = share_dir.read_dir() {
                 add_to_env("XDG_DATA_DIRS", "/usr/local/share");
                 add_to_env("XDG_DATA_DIRS", "/usr/share");
+                add_to_env("XDG_DATA_DIRS", "/run/opengl-driver/share");
                 add_to_env("XDG_DATA_DIRS", format!("{}/.local/share", get_env_var("HOME")));
                 add_to_env("XDG_DATA_DIRS", &share_dir);
                 let xdg_data_dirs = &get_env_var("XDG_DATA_DIRS");
