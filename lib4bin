@@ -73,6 +73,12 @@ for var in $problematic_vars; do
 	esac
 done
 
+# Restore HOME, XDG_cONFIG_HOME and XDG_DATA_HOME to their original values
+# NOTE: The REAL_* vars are set by the uruntime
+export HOME="${REAL_HOME:-$HOME}"
+export XDG_DATA_HOME="${REAL_XDG_DATA_HOME:-$XDG_DATA_HOME}"
+export XDG_CONFIG_HOME="${REAL_XDG_CONFIG_HOME:-$XDG_CONFIG_HOME}"
+
 if [ "${0##*/}" = "gio-launch-desktop" ]; then
 	export GIO_LAUNCHED_DESKTOP_FILE_PID=$$
 	exec "$@"
