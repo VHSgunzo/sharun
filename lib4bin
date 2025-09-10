@@ -78,6 +78,7 @@ done
 export HOME="${REAL_HOME:-$HOME}"
 export XDG_DATA_HOME="${REAL_XDG_DATA_HOME:-$XDG_DATA_HOME}"
 export XDG_CONFIG_HOME="${REAL_XDG_CONFIG_HOME:-$XDG_CONFIG_HOME}"
+export XDG_CACHE_HOME="${REAL_XDG_CACHE_HOME:-$XDG_CACHE_HOME}"
 
 if [ "${0##*/}" = "gio-launch-desktop" ]; then
 	export GIO_LAUNCHED_DESKTOP_FILE_PID=$$
