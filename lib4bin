@@ -962,6 +962,16 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                                                                                         try_cp "$sys_gtkimm_cache" "$dst_gtkimm_cache"
                                                                                         sed -i 's|/usr/lib/.*/immodules/||g' "$dst_gtkimm_cache"
                                                                                 fi ;;
+                                                                            *libglycin*.so*)
+                                                                                sys_glycin_conf_dir='/usr/share/glycin-loaders'
+                                                                                dst_glycin_conf_dir="$dst_dir/share/glycin-loaders"
+                                                                                if [[ -d "$sys_glycin_conf_dir" && ! -d "$dst_glycin_conf_dir" ]]
+                                                                                    then
+                                                                                        hook_msg "copy glycin-loaders config..."
+                                                                                        try_mkdir "$dst_glycin_conf_dir"
+                                                                                        try_cp -T "$sys_glycin_conf_dir" "$dst_glycin_conf_dir"
+                                                                                        sed -i 's|/usr/lib.*/||g' "$dst_glycin_conf_dir"/*/*/*.conf
+                                                                                fi ;;
                                                                             */libfontconfig.so*)
                                                                                 sys_fcfg='/etc/fonts/fonts.conf'
                                                                                 dst_fcfg="$dst_dir/etc/fonts/fonts.conf"
