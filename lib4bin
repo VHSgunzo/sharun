@@ -94,7 +94,7 @@ usage() {
     -d, --dst-dir '/path'    Destination directory (env: DST_DIR='/path')
     -e, --strace-mode        Use strace for get libs (env: STRACE_MODE=1)
     -t, --strace-time 5      Specify the time in seconds for strace mode (env: STRACE_TIME=5)
-    -g, --gen-lib-path       Generate a lib.path file (env: GEN_LIB_PATH=1)
+    -g, --gen-lib-path       Generate a lib.path file (env: GEN_LIB_PATH=1) (default)
     -h, --help               Show this message
     -i, --patch-interpreter  Patch INTERPRETER to a relative path (env: PATCH_INTERPRETER=1)
     -k, --with-hooks         Pack additional files required for libraries (env: WITH_HOOKS=1)
