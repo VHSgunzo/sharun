@@ -4,7 +4,7 @@ use std::{
     path::{Path, PathBuf},
     ffi::{CString, OsStr},
     process::{Command, exit},
-    fs::{File, write, read_to_string},
+    fs::{self, File, write, read_to_string},
     os::unix::{fs::{MetadataExt, PermissionsExt, symlink}, process::CommandExt},
     io::{Read, Result, Error, Write, BufRead, BufReader, ErrorKind::{InvalidData, NotFound}}
 };
@@ -625,24 +625,28 @@ fn main() {
     env::remove_var("SHARUN_ALLOW_LD_PRELOAD");
 
     fn create_tmp_symlink(var_name: &str, target_path: &str) {
-        if let Ok(link_name) = env::var(var_name) {
-            if !link_name.is_empty() {
-                let link_path = PathBuf::from("/tmp").join(&link_name);
-                if link_path.exists() {
-                    if let Err(e) = std::fs::remove_file(&link_path) {
+        let link_name = env::var(var_name).unwrap_or_default();
+        if !link_name.is_empty() {
+            let link_path = PathBuf::from("/tmp").join(&link_name);
+            if link_path.exists() {
+                if link_path.is_dir() {
+                    if let Err(e) = fs::remove_dir_all(&link_path) {
+                        eprintln!("Failed to remove existing directory at {}: {}", link_path.display(), e);
+                    }
+                } else {
+                    if let Err(e) = fs::remove_file(&link_path) {
                         eprintln!("Failed to remove existing file at {}: {}", link_path.display(), e);
-                        return;
                     }
                 }
-                if let Err(e) = symlink(target_path, &link_path) {
-                    eprintln!("Failed to create symlink from {} to {}: {}", target_path, link_path.display(), e);
-                }
+            }
+            if let Err(e) = symlink(target_path, &link_path) {
+                eprintln!("Failed to create symlink from {} to {}: {}", target_path, link_path.display(), e);
             }
         }
+        env::remove_var(var_name);
     }
-
     create_tmp_symlink("SHARUN_TMP_SHARE", &format!("{}/share", sharun_dir));
-    create_tmp_symlink("SHARUN_TMP_LIB", &format!("{}/shared/lib", sharun_dir));
+    create_tmp_symlink("SHARUN_TMP_LIB", &format!("{}/lib", sharun_dir));
     create_tmp_symlink("SHARUN_TMP_BIN", &format!("{}/bin", sharun_dir));
 
     let interpreter = get_interpreter(&library_path).unwrap_or_else(|_|{
