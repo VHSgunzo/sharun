@@ -704,6 +704,9 @@ fn main() {
                 if dir == "gbm" {
                     env::set_var("GBM_BACKENDS_PATH", dir_path)
                 }
+                if dir == "libheif" {
+                    env::set_var("LIBHEIF_PLUGIN_PATH", dir_path)
+                }
                 if dir == "xtables" {
                     env::set_var("XTABLES_LIBDIR", dir_path)
                 }
