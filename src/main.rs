@@ -705,7 +705,12 @@ fn main() {
                     env::set_var("GBM_BACKENDS_PATH", dir_path)
                 }
                 if dir == "libheif" {
-                    env::set_var("LIBHEIF_PLUGIN_PATH", dir_path)
+                    let plugins = &format!("{dir_path}/plugins");
+                    if Path::new(plugins).exists() {
+                        env::set_var("LIBHEIF_PLUGIN_PATH", plugins)
+                    } else {
+                        env::set_var("LIBHEIF_PLUGIN_PATH", dir_path)
+                    }
                 }
                 if dir == "xtables" {
                     env::set_var("XTABLES_LIBDIR", dir_path)
