@@ -1055,7 +1055,7 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                                                                                             then
                                                                                                 try_mkdir "$bin_dir_pth"
                                                                                                 try_mv "$bin_to_wrap" "$bin_dir_pth"
-                                                                                                ln $varg -sr "$dst_dir/sharun" "$dst_webkit_lib_dir/$(basename "$bin_to_wrap")"
+                                                                                                ln $varg "$dst_dir/sharun" "$dst_webkit_lib_dir/$(basename "$bin_to_wrap")"
                                                                                         fi
                                                                                 done
                                                                                 if [ "$(basename "$lib_src_dirname_pth")" != "$lib_dir" ]
