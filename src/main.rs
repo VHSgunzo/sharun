@@ -624,6 +624,11 @@ fn main() {
     }
     env::remove_var("SHARUN_ALLOW_LD_PRELOAD");
 
+    if get_env_var("SHARUN_ALLOW_QT_PLUGIN_PATH") != "1" {
+        env::remove_var("QT_PLUGIN_PATH")
+    }
+    env::remove_var("SHARUN_ALLOW_QT_PLUGIN_PATH");
+
     let interpreter = get_interpreter(&library_path).unwrap_or_else(|_|{
         eprintln!("Interpreter not found!");
         exit(1)
