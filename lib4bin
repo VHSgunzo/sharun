@@ -972,21 +972,12 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                                                                                         try_cp -T "$sys_glycin_conf_dir" "$dst_glycin_conf_dir"
                                                                                         sed -i 's|/usr/lib.*/||g' "$dst_glycin_conf_dir"/*/*/*.conf
                                                                                 fi ;;
-                                                                            *libgtksourceview-4.so*)
-                                                                                sys_sourceview_dir='/usr/share/gtksourceview-4'
-                                                                                dst_sourceview_dir="$dst_dir/share/gtksourceview-4"
+                                                                            *libgtksourceview-*.so*)
+                                                                                sys_sourceview_dir="/usr/share/$(grep -o 'gtksourceview-.*\.so'<<<"$lib_dst_pth"|sed "s|\.so$||")"
+                                                                                dst_sourceview_dir="$dst_dir/share/${sys_sourceview_dir##*/}"
                                                                                 if [[ -d "$sys_sourceview_dir" && ! -d "$dst_sourceview_dir" ]]
                                                                                     then
-                                                                                        hook_msg "copy gtksourceview4 data files..."
-                                                                                        try_mkdir "$dst_sourceview_dir"
-                                                                                        try_cp -T "$sys_sourceview_dir" "$dst_sourceview_dir"
-                                                                                fi ;;
-                                                                            *libgtksourceview-5.so*)
-                                                                                sys_sourceview_dir='/usr/share/gtksourceview-5'
-                                                                                dst_sourceview_dir="$dst_dir/share/gtksourceview-5"
-                                                                                if [[ -d "$sys_sourceview_dir" && ! -d "$dst_sourceview_dir" ]]
-                                                                                    then
-                                                                                        hook_msg "copy gtksourceview5 data files..."
+                                                                                        hook_msg "copy ${sys_sourceview_dir##*/} data files..."
                                                                                         try_mkdir "$dst_sourceview_dir"
                                                                                         try_cp -T "$sys_sourceview_dir" "$dst_sourceview_dir"
                                                                                 fi ;;
