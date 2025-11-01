@@ -4,4 +4,3 @@ rustflags = ["-Z", "remap-cwd-prefix="]
 
 [unstable]
 build-std = ["std", "panic_abort"]
-build-std-features = ["panic_immediate_abort"]
