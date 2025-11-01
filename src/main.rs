@@ -369,12 +369,13 @@ fn print_usage() {
     -h,  --help                 Print help
 
 [ Environments ]:
-    SHARUN_WORKING_DIR=/path    Specifies the path to the working directory
-    SHARUN_ALLOW_SYS_VKICD=1    Enables breaking system vulkan/icd.d for vulkan loader
-    SHARUN_ALLOW_LD_PRELOAD=1   Enables breaking LD_PRELOAD env variable
-    SHARUN_PRINTENV=1           Print environment variables to stderr
-    SHARUN_LDNAME=ld.so         Specifies the name of the interpreter
-    SHARUN_DIR                  Sharun directory");
+    SHARUN_WORKING_DIR=/path       Specifies the path to the working directory
+    SHARUN_ALLOW_SYS_VKICD=1       Enables breaking system vulkan/icd.d for vulkan loader
+    SHARUN_ALLOW_LD_PRELOAD=1      Enables breaking LD_PRELOAD env variable
+    SHARUN_ALLOW_QT_PLUGIN_PATH=1  Enables breaking QT_PLUGIN_PATH env variable
+    SHARUN_PRINTENV=1              Print environment variables to stderr
+    SHARUN_LDNAME=ld.so            Specifies the name of the interpreter
+    SHARUN_DIR                     Sharun directory");
 }
 
 fn main() {
@@ -623,6 +624,11 @@ fn main() {
         env::remove_var("LD_PRELOAD")
     }
     env::remove_var("SHARUN_ALLOW_LD_PRELOAD");
+
+    if get_env_var("SHARUN_ALLOW_QT_PLUGIN_PATH") != "1" {
+        env::remove_var("QT_PLUGIN_PATH")
+    }
+    env::remove_var("SHARUN_ALLOW_QT_PLUGIN_PATH");
 
     let interpreter = get_interpreter(&library_path).unwrap_or_else(|_|{
         eprintln!("Interpreter not found!");
