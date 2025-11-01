@@ -51,8 +51,17 @@ XDG_OPEN_WRAPPER='#!/bin/sh
 
 CURRENTDIR="$(cd "${0%/*}" && echo "$PWD")"
 APPDIR="${APPDIR:-${SHARUN_DIR:-${CURRENTDIR%/*}}}"
-PATH="${PATH#$CURRENTDIR:}"
-PATH="${PATH%:$CURRENTDIR}"
+
+NEWPATH=""
+OLDIFS="$IFS"
+IFS=:
+for p in $PATH; do
+	if [ "$p" != "$CURRENTDIR" ]; then
+		NEWPATH="${NEWPATH:+$NEWPATH:}$p"
+	fi
+done
+PATH="$NEWPATH"
+IFS="$OLDIFS"
 export PATH
 
 problematic_vars="BABL_PATH __EGL_VENDOR_LIBRARY_DIRS GBM_BACKENDS_PATH GCONV_PATH \
@@ -73,7 +82,7 @@ for var in $problematic_vars; do
 	esac
 done
 
-# Restore HOME, XDG_cONFIG_HOME and XDG_DATA_HOME to their original values
+# Restore HOME, XDG_CONFIG_HOME and XDG_DATA_HOME to their original values
 # NOTE: The REAL_* vars are set by the uruntime
 export HOME="${REAL_HOME:-$HOME}"
 export XDG_DATA_HOME="${REAL_XDG_DATA_HOME:-$XDG_DATA_HOME}"
