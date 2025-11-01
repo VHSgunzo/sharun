@@ -44,12 +44,13 @@ cp ./target/$(uname -m)-unknown-linux-musl/release/sharun .
     -h,  --help                 Print help
 
 [ Environments ]:
-    SHARUN_WORKING_DIR=/path    Specifies the path to the working directory
-    SHARUN_ALLOW_SYS_VKICD=1    Enables breaking system vulkan/icd.d for vulkan loader
-    SHARUN_ALLOW_LD_PRELOAD=1   Enables breaking LD_PRELOAD env variable
-    SHARUN_PRINTENV=1           Print environment variables to stderr
-    SHARUN_LDNAME=ld.so         Specifies the name of the interpreter
-    SHARUN_DIR                  Sharun directory
+    SHARUN_WORKING_DIR=/path       Specifies the path to the working directory
+    SHARUN_ALLOW_SYS_VKICD=1       Enables breaking system vulkan/icd.d for vulkan loader
+    SHARUN_ALLOW_LD_PRELOAD=1      Enables breaking LD_PRELOAD env variable
+    SHARUN_ALLOW_QT_PLUGIN_PATH=1  Enables breaking QT_PLUGIN_PATH env variable
+    SHARUN_PRINTENV=1              Print environment variables to stderr
+    SHARUN_LDNAME=ld.so            Specifies the name of the interpreter
+    SHARUN_DIR                     Sharun directory
 ```
 
 ## Usage lib4bin:
