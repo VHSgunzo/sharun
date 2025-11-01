@@ -157,7 +157,7 @@ chmod +x ./sharun
 * Additional env var can be specified in the `.env` file (see [dotenv](https://crates.io/crates/dotenv)). Env var can also be deleted using `unset ENV_VAR` in the end of the `.env` file.
 
 * You can preload libraries using `.preload` file. Specify the necessary libraries in it from a new line. You can use the full paths to libraries or only their names if they are located in `shared/{lib,lib32}/`
-This can be useful, for example, to use [ld-preload-open](https://github.com/fritzw/ld-preload-open) library to reassign paths.
+This can be useful, for example, to use [pathmap](https://github.com/VHSgunzo/pathmap) library to reassign paths.
 
 ## Screenshots:
 ![tree](img/tree.png)
@@ -188,6 +188,7 @@ This can be useful, for example, to use [ld-preload-open](https://github.com/fri
 |`GBM_BACKENDS_PATH` | `${SHARUN_DIR}/shared/$LIB/gbm`|
 |`XTABLES_LIBDIR` | `${SHARUN_DIR}/shared/$LIB/xtables`|
 |`FOLKS_BACKEND_PATH` | `${SHARUN_DIR}/shared/$LIB/folks/*/backends`|
+|`LIBHEIF_PLUGIN_PATH` | `${SHARUN_DIR}/shared/$LIB/libheif/plugins` or `${SHARUN_DIR}/shared/$LIB/libheif`|
 |||
 |---|---|
 |`XDG_DATA_DIRS` | `${SHARUN_DIR}/share`|
@@ -211,16 +212,17 @@ This can be useful, for example, to use [ld-preload-open](https://github.com/fri
 * [AnyLinux-AppImages](https://github.com/pkgforge-dev/Anylinux-AppImages)
 * [RMG](https://github.com/Rosalie241/RMG)
 * [PrusaSlicer.AppImage](https://github.com/probonopd/PrusaSlicer.AppImage)
-* [goverlay](https://github.com/benjamimgois/goverlay)
-* [ghostty-appimage](https://github.com/psadi/ghostty-appimage)
-* [interstellar](https://github.com/jwr1/interstellar)
+* [GOverlay](https://github.com/benjamimgois/goverlay)
+* [Ghostty-AppImage](https://github.com/psadi/ghostty-appimage)
+* [Interstellar](https://github.com/jwr1/interstellar)
 * [LibreSprite](https://github.com/LibreSprite/LibreSprite)
 * [QDiskInfo](https://github.com/edisionnano/QDiskInfo)
-* [mangojuice](https://github.com/radiolamp/mangojuice)
+* [MangoJuice](https://github.com/radiolamp/mangojuice)
 * [CPU-X](https://github.com/TheTumultuousUnicornOfDarkness/CPU-X)
-* [eden](https://git.eden-emu.dev/eden-emu/eden)
-* [ppsspp](https://github.com/hrydgard/ppsspp)
+* [Eden](https://git.eden-emu.dev/eden-emu/eden)
+* [PPSSPP](https://github.com/hrydgard/ppsspp)
 * [Converseen](https://github.com/Faster3ck/Converseen)
+* [RSS Guard](https://github.com/martinrotter/rssguard)
 
 ## References
 * [userland-execve](https://crates.io/crates/userland-execve)
