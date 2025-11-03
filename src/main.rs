@@ -915,6 +915,19 @@ fn main() {
         library_path += &format!(":{ld_library_path_env}")
     }
 
+    library_path += ":/usr/lib:/lib";
+    if is_elf32_bin {
+        library_path += ":/usr/lib32:/lib32";
+        #[cfg(target_arch = "x86_64")]
+        { library_path += ":/usr/lib/i386-linux-gnu" }
+    } else {
+        library_path += ":/usr/lib64:/lib64";
+        #[cfg(target_arch = "x86_64")]
+        { library_path += ":/usr/lib/x86_64-linux-gnu" }
+        #[cfg(target_arch = "aarch64")]
+        { library_path += ":/usr/lib/aarch64-linux-gnu" }
+    }
+
     for var_name in unset_envs {
         env::remove_var(var_name)
     }
