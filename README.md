@@ -50,8 +50,8 @@ cp ./target/$(uname -m)-unknown-linux-musl/release/sharun .
     SHARUN_ALLOW_QT_PLUGIN_PATH=1  Enables breaking QT_PLUGIN_PATH env variable
     SHARUN_PRINTENV=1              Print environment variables to stderr
     SHARUN_LDNAME=ld.so            Specifies the name of the interpreter
-    SHARUN_EXTRA_LIBRARY_PATH      Extra library directories with highest precedence
-    SHARUN_FALLBACK_LIBRARY_PATH   Fallback library directories with lowest precedence
+    SHARUN_EXTRA_LIBRARY_PATH      Extra library directories with highest priority
+    SHARUN_FALLBACK_LIBRARY_PATH   Fallback library directories with lowest priority
     SHARUN_DIR                     Sharun directory
 ```
 
