@@ -3,7 +3,7 @@ use std::{
     str::FromStr,
     path::{Path, PathBuf},
     ffi::{CString, OsStr},
-    process::{Command, exit},
+    process::{Command, Stdio, exit},
     fs::{File, write, read_to_string},
     os::unix::{fs::{MetadataExt, PermissionsExt}, process::CommandExt},
     io::{Read, Result, Error, Write, BufRead, BufReader, ErrorKind::{InvalidData, NotFound}}
@@ -212,8 +212,8 @@ fn get_elf(path: &String, is_elf32: bool) -> Result<Vec<u8>> {
     } else {
         let mut elf_header_raw = [0; 64];
         file.read_exact(&mut elf_header_raw)?;
-        let section_table_offset = u64::from_le_bytes(elf_header_raw[40..48].try_into().unwrap()); // e_shoff
-        let section_count = u16::from_le_bytes(elf_header_raw[60..62].try_into().unwrap()); // e_shnum
+        let section_table_offset = u64::from_le_bytes(elf_header_raw[40..48].try_into().unwrap_or_default()); // e_shoff
+        let section_count = u16::from_le_bytes(elf_header_raw[60..62].try_into().unwrap_or_default()); // e_shnum
         let section_table_size = section_count as u64 * 64;
         let required_bytes = section_table_offset + section_table_size;
         let mut headers_bytes = vec![0; required_bytes as usize];
@@ -274,11 +274,11 @@ fn set_interp(mut elf_bytes: Vec<u8>, elf_path: &String, new_interp: &str) -> Re
 }
 
 fn get_env_var<K: AsRef<OsStr>>(key: K) -> String {
-    env::var(key).unwrap_or("".into())
+    env::var(key).unwrap_or_default()
 }
 
 fn add_to_env<K: AsRef<OsStr>, V: AsRef<OsStr>>(key: K, val: V) {
-    let (key, val) = (key.as_ref(), val.as_ref().to_str().unwrap());
+    let (key, val) = (key.as_ref(), val.as_ref().to_str().unwrap_or_default());
     let old_val = get_env_var(key);
     if old_val.is_empty() {
         env::set_var(key, val)
@@ -375,11 +375,17 @@ fn print_usage() {
     SHARUN_ALLOW_QT_PLUGIN_PATH=1  Enables breaking QT_PLUGIN_PATH env variable
     SHARUN_PRINTENV=1              Print environment variables to stderr
     SHARUN_LDNAME=ld.so            Specifies the name of the interpreter
+    SHARUN_EXTRA_LIBRARY_PATH      Extra library directories with highest priority
+    SHARUN_FALLBACK_LIBRARY_PATH   Fallback library directories with lowest priority
     SHARUN_DIR                     Sharun directory");
 }
 
 fn main() {
-    let sharun = env::current_exe().unwrap();
+    let sharun = env::current_exe().unwrap_or_else(|err|{
+        eprintln!("Failed to get sharun path: {err}");
+        exit(1)
+    });
+
     let mut exec_args: Vec<String> = env::args().collect();
 
     let mut sharun_dir = realpath(&get_env_var("SHARUN_DIR"));
@@ -391,7 +397,10 @@ fn main() {
             is_same_rootdir(sharun_dir_path, &sharun, &sharun_path)
         })
     {
-        sharun_dir = sharun.parent().unwrap().to_str().unwrap().to_string();
+        sharun_dir = sharun.parent().unwrap_or_else(||{
+            eprintln!("Failed to get sharun parrent dir!");
+            exit(1)
+        }).to_str().unwrap_or_default().to_string();
         let lower_dir = &format!("{sharun_dir}/../");
         if basename(&sharun_dir) == "bin" &&
             is_dir(&format!("{lower_dir}shared")) {
@@ -407,11 +416,14 @@ fn main() {
     let shared_lib32 = format!("{shared_dir}/lib32");
 
     let arg0 = PathBuf::from(exec_args.remove(0));
-    let arg0_name = arg0.file_name().unwrap().to_str().unwrap();
-    let arg0_dir = PathBuf::from(dirname(arg0.to_str().unwrap())).canonicalize()
+    let arg0_name = arg0.file_name().unwrap_or_default().to_str().unwrap_or_default();
+    let arg0_dir = PathBuf::from(dirname(arg0.to_str().unwrap_or_default())).canonicalize()
         .unwrap_or_else(|_|{
             if let Some(which_arg0) = which(arg0_name) {
-                which_arg0.parent().unwrap().to_path_buf()
+                which_arg0.parent().unwrap_or_else(||{
+                    eprintln!("Failed to get ARG0 parrent dir!");
+                    exit(1)
+                }).to_path_buf()
             } else {
                 eprintln!("Failed to find ARG0 dir!");
                 exit(1)
@@ -419,15 +431,15 @@ fn main() {
     });
 
     let arg0_path = arg0_dir.join(arg0_name);
-    let arg0_full_path = arg0_path.canonicalize().unwrap();
-    let arg0_full_path_name = arg0_full_path.file_name().unwrap().to_string_lossy().to_string();
+    let arg0_full_path = arg0_path.canonicalize().unwrap_or_default();
+    let arg0_full_path_name = arg0_full_path.file_name().unwrap_or_default().to_string_lossy().to_string();
     let mut bin_name = if arg0_path.is_symlink() &&
         arg0_full_path == Path::new(&sharun_dir).join(SHARUN_NAME) {
         arg0_name.into()
     } else if arg0_path.is_symlink() && Path::new(&shared_bin).join(&arg0_full_path_name).exists() {
         arg0_full_path_name
     } else {
-        sharun.file_name().unwrap().to_string_lossy().to_string()
+        sharun.file_name().unwrap_or_default().to_string_lossy().to_string()
     };
     drop(arg0_dir);
     drop(arg0_full_path);
@@ -457,24 +469,26 @@ fn main() {
                     let lib4bin_compressed = include_file_compress::include_file_compress_deflate!("lib4bin", 9);
                     let mut decoder = flate2::read::DeflateDecoder::new(&lib4bin_compressed[..]);
                     let mut lib4bin = Vec::new();
-                    decoder.read_to_end(&mut lib4bin).unwrap();
+                    decoder.read_to_end(&mut lib4bin).unwrap_or_default();
                     drop(decoder);
                     exec_args.remove(0);
                     add_to_env("PATH", bin_dir);
                     let cmd = Command::new("bash")
                         .env("SHARUN", sharun)
-                        .envs(env::vars())
-                        .stdin(std::process::Stdio::piped())
+                        .stdin(Stdio::piped())
                         .arg("-s").arg("--")
                         .args(exec_args)
                         .spawn();
                     match cmd {
                         Ok(mut bash) => {
-                            bash.stdin.take().unwrap().write_all(&lib4bin).unwrap_or_else(|err|{
+                            bash.stdin.take().unwrap_or_else(||{
+                                eprintln!("Failed to take bash stdin!");
+                                exit(1)
+                            }).write_all(&lib4bin).unwrap_or_else(|err|{
                                 eprintln!("Failed to write lib4bin to bash stdin: {err}");
                                 exit(1)
                             });
-                            exit(bash.wait().unwrap().code().unwrap())
+                            exit(bash.wait().unwrap_or_default().code().unwrap_or_default())
                         }
                         Err(err) => {
                             eprintln!("Failed to run bash: {err}");
@@ -486,7 +500,7 @@ fn main() {
                     bin_name = exec_args.remove(0);
                     let bin_path = PathBuf::from(bin_dir).join(&bin_name);
                     if let Ok(bin_full_path) = bin_path.canonicalize() {
-                        let bin_full_path_name = bin_full_path.file_name().unwrap().to_string_lossy().to_string();
+                        let bin_full_path_name = bin_full_path.file_name().unwrap_or_default().to_string_lossy().to_string();
                         if bin_path.is_symlink() && Path::new(&shared_bin).join(&bin_full_path_name).exists() {
                             bin_name = bin_full_path_name
                         }
@@ -505,7 +519,6 @@ fn main() {
                                 }
                                 Ok(false) => {
                                     let err = Command::new(&bin_path)
-                                        .envs(env::vars())
                                         .args(exec_args)
                                         .exec();
                                     eprintln!("Error executing file {:?}: {err}", &bin_path);
@@ -525,7 +538,7 @@ fn main() {
             if let Ok(dir) = Path::new(bin_dir).read_dir() {
                 for bin in dir.flatten() {
                     if is_exe(&bin.path()) {
-                        println!("{}", bin.file_name().to_str().unwrap())
+                        println!("{}", bin.file_name().to_str().unwrap_or_default())
                     }
                 }
             }
@@ -540,7 +553,7 @@ fn main() {
                     let path = entry.path();
                     if is_file(&path) {
                         let name = entry.file_name();
-                        let name = name.to_str().unwrap();
+                        let name = name.to_str().unwrap_or_default();
                         if name.ends_with(".desktop") {
                             let data = read_to_string(path).unwrap_or_else(|err|{
                                 eprintln!("Failed to read desktop file: {name}: {err}");
@@ -582,7 +595,6 @@ fn main() {
         }
 
         let err = Command::new(app)
-            .envs(env::vars())
             .args(exec_args)
             .exec();
         eprintln!("Failed to run App: {app}: {err}");
@@ -818,8 +830,17 @@ fn main() {
                     let entry_path = entry.path();
                     if entry_path.is_dir() {
                         let name = entry.file_name();
-                        match name.to_str().unwrap() {
+                        match name.to_str().unwrap_or_default() {
                             "glvnd" => {
+                                if get_env_var("__EGL_VENDOR_LIBRARY_FILENAMES").is_empty() {
+                                    for xdg_data_dir in xdg_data_dirs.rsplit(":") {
+                                        let nvidia_json_path = Path::new(xdg_data_dir).join("glvnd/egl_vendor.d/10_nvidia.json");
+                                        if nvidia_json_path.exists() {
+                                            env::set_var("__EGL_VENDOR_LIBRARY_FILENAMES", &nvidia_json_path);
+                                            break
+                                        }
+                                    }
+                                }
                                 add_to_xdg_data_env(xdg_data_dirs,
                                     "__EGL_VENDOR_LIBRARY_DIRS", "glvnd/egl_vendor.d")
                             }
@@ -833,7 +854,7 @@ fn main() {
                                     for xdg_data_dir in xdg_data_dirs.rsplit(":") {
                                         let vk_icd_dir = Path::new(xdg_data_dir).join(vk_dir);
                                         if vk_icd_dir.exists() {
-                                            if xdg_data_dir.starts_with(share_dir.to_str().unwrap()) {
+                                            if xdg_data_dir.starts_with(share_dir.to_str().unwrap_or_default()) {
                                                 add_to_env(vk_env, vk_icd_dir);
                                             } else if let Ok(dir) = vk_icd_dir.read_dir() {
                                                 for entry in dir.flatten() {
@@ -886,7 +907,7 @@ fn main() {
                     let entry_path = entry.path();
                     if entry_path.is_dir() {
                         let name = entry.file_name();
-                        match name.to_str().unwrap() {
+                        match name.to_str().unwrap_or_default() {
                             "fonts" => {
                                 let fonts_conf = entry_path.join("fonts.conf");
                                 if !Path::new("/etc/fonts/fonts.conf").exists() && fonts_conf.exists() {
@@ -915,6 +936,11 @@ fn main() {
         library_path += &format!(":{ld_library_path_env}")
     }
 
+    let extra_library_path = get_env_var("SHARUN_EXTRA_LIBRARY_PATH");
+    if !extra_library_path.is_empty() {
+        library_path = format!("{}:{}", extra_library_path, library_path);
+    }
+
     library_path += ":/usr/lib:/lib";
     if is_elf32_bin {
         library_path += ":/usr/lib32:/lib32";
@@ -928,14 +954,19 @@ fn main() {
         { library_path += ":/usr/lib/aarch64-linux-gnu" }
     }
 
+    let fallback_library_path = get_env_var("SHARUN_FALLBACK_LIBRARY_PATH");
+    if !fallback_library_path.is_empty() {
+        library_path = format!("{}:{}", library_path, fallback_library_path);
+    }
+
     for var_name in unset_envs {
         env::remove_var(var_name)
     }
 
     if get_env_var("SHARUN_PRINTENV") == "1" {
         env::remove_var("SHARUN_PRINTENV");
-        for (k, v) in env::vars() {
-            eprintln!("{k}={v}")
+        for (key, value) in env::vars_os() {
+            eprintln!("{}={}", key.to_string_lossy(), value.to_string_lossy())
         }
     }
 
@@ -952,16 +983,16 @@ fn main() {
     let mut interpreter_args: Vec<CString> = Vec::new();
     if !is_pyinstaller_elf || is_pyinstaller_dir || is_elf32_bin {
         interpreter_args.append(&mut vec![
-            CString::from_str(&interpreter.to_string_lossy()).unwrap(),
-            CString::new("--library-path").unwrap(),
-            CString::new(&*library_path).unwrap(),
-            CString::new("--argv0").unwrap()
+            CString::from_str(&interpreter.to_string_lossy()).unwrap_or_default(),
+            CString::new("--library-path").unwrap_or_default(),
+            CString::new(&*library_path).unwrap_or_default(),
+            CString::new("--argv0").unwrap_or_default()
         ]);
 
         if is_pyinstaller_elf || is_elf32_bin {
-            interpreter_args.push(CString::new(&*bin).unwrap())
+            interpreter_args.push(CString::new(&*bin).unwrap_or_default())
         } else {
-            interpreter_args.push(CString::new(arg0_path.to_str().unwrap()).unwrap())
+            interpreter_args.push(CString::new(arg0_path.to_str().unwrap_or_default()).unwrap_or_default())
         }
 
         let preload_path = PathBuf::from(format!("{sharun_dir}/.preload"));
@@ -976,15 +1007,15 @@ fn main() {
             }
             if !preload.is_empty() {
                 interpreter_args.append(&mut vec![
-                    CString::new("--preload").unwrap(),
-                    CString::new(preload.join(" ")).unwrap()
+                    CString::new("--preload").unwrap_or_default(),
+                    CString::new(preload.join(" ")).unwrap_or_default()
                 ])
             }
         }
 
-        interpreter_args.push(CString::new(&*bin).unwrap());
+        interpreter_args.push(CString::new(&*bin).unwrap_or_default());
         for arg in &exec_args {
-            interpreter_args.push(CString::from_str(arg).unwrap())
+            interpreter_args.push(CString::from_str(arg).unwrap_or_default())
         }
     }
 
@@ -992,30 +1023,28 @@ fn main() {
         let err = if is_pyinstaller_dir || (!is_pyinstaller_elf && is_elf32_bin) {
             drop(elf_bytes);
             let interpreter_args: Vec<String> = interpreter_args.iter()
-                .map(|s| s.clone().into_string().unwrap()).skip(1).collect();
+                .map(|s| s.clone().into_string().unwrap_or_default()).skip(1).collect();
             Command::new(interpreter)
                 .args(interpreter_args)
-                .envs(env::vars())
                 .exec()
         } else {
-            set_interp(elf_bytes, &bin, interpreter.to_str().unwrap())
+            set_interp(elf_bytes, &bin, interpreter.to_str().unwrap_or_default())
                 .unwrap_or_else(|err|{
                     eprintln!("Failed to set ELF interpreter: {}: {err}", &bin);
                     exit(1)
             });
             Command::new(&bin)
                 .args(exec_args)
-                .envs(env::vars())
                 .exec()
         };
         eprint!("Failed to exec: {bin}: {err}");
         exit(1)
     } else {
         drop(elf_bytes);
-        let envs: Vec<CString> = env::vars()
+        let envs: Vec<CString> = env::vars_os()
             .map(|(key, value)| CString::new(
-                format!("{key}={value}")
-        ).unwrap()).collect();
+                format!("{}={}", key.to_string_lossy(), value.to_string_lossy())
+        ).unwrap_or_default()).collect();
 
         userland_execve::exec(
             interpreter.as_path(),

@@ -50,6 +50,8 @@ cp ./target/$(uname -m)-unknown-linux-musl/release/sharun .
     SHARUN_ALLOW_QT_PLUGIN_PATH=1  Enables breaking QT_PLUGIN_PATH env variable
     SHARUN_PRINTENV=1              Print environment variables to stderr
     SHARUN_LDNAME=ld.so            Specifies the name of the interpreter
+    SHARUN_EXTRA_LIBRARY_PATH      Extra library directories with highest precedence
+    SHARUN_FALLBACK_LIBRARY_PATH   Fallback library directories with lowest precedence
     SHARUN_DIR                     Sharun directory
 ```
 
@@ -205,6 +207,7 @@ This can be useful, for example, to use [pathmap](https://github.com/VHSgunzo/pa
 |`FONTCONFIG_FILE` (if no /etc/fonts/fonts.conf) | `${SHARUN_DIR}/etc/fonts/fonts.conf`|
 |---|---|
 |`GIO_LAUNCH_DESKTOP` | `${SHARUN_DIR}/bin/gio-launch-desktop`|
+|`__EGL_VENDOR_LIBRARY_FILENAMES` | `/usr/share/glvnd/egl_vendor.d/10_nvidia.json` (if env not set)|
 
 ## Projects that use sharun:
 * [SoarPkgs](https://github.com/pkgforge/soarpkgs)
