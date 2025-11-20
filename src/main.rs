@@ -3,7 +3,7 @@ use std::{
     str::FromStr,
     path::{Path, PathBuf},
     ffi::{CString, OsStr},
-    process::{Command, Stdio, exit},
+    process::{Command, exit},
     fs::{File, write, read_to_string},
     os::unix::{fs::{MetadataExt, PermissionsExt}, process::CommandExt},
     io::{Read, Result, Error, Write, BufRead, BufReader, ErrorKind::{InvalidData, NotFound}}
@@ -475,7 +475,7 @@ fn main() {
                     add_to_env("PATH", bin_dir);
                     let cmd = Command::new("bash")
                         .env("SHARUN", sharun)
-                        .stdin(Stdio::piped())
+                        .stdin(std::process::Stdio::piped())
                         .arg("-s").arg("--")
                         .args(exec_args)
                         .spawn();
