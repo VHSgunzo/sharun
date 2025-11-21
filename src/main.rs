@@ -874,6 +874,10 @@ fn main() {
                                 if !Path::new("/usr/share/X11/xkb").exists() && xkb.exists() {
                                     env::set_var("XKB_CONFIG_ROOT", xkb)
                                 }
+                                let xlocale = &entry_path.join("locale");
+                                if !Path::new("/usr/share/X11/locale").exists() && xlocale.exists() {
+                                    env::set_var("XLOCALEDIR", xlocale)
+                                }
                             }
                             "libthai" => {
                                 if entry_path.join("thbrk.tri").exists() {
