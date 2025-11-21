@@ -1024,6 +1024,14 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                                                                                         hook_msg "copy X11 xkb..."
                                                                                         try_mkdir "$dst_xcb_dir"
                                                                                         try_cp -T "$sys_xcb_dir" "$dst_xcb_dir"
+                                                                                fi
+                                                                                sys_xlocale_dir="$(readlink -f /usr/share/X11/locale)"
+                                                                                dst_xlocale_dir="$dst_dir/share/X11/locale"
+                                                                                if [[ -d "$sys_xlocale_dir" && ! -d "$dst_xlocale_dir" ]]
+                                                                                    then
+                                                                                        hook_msg "copy X11 locale..."
+                                                                                        try_mkdir "$dst_xlocale_dir"
+                                                                                        try_cp -T "$sys_xlocale_dir" "$dst_xlocale_dir"
                                                                                 fi ;;
                                                                             */libgbm.so*)
                                                                                 sys_gbm_dir="$(dirname "$lib_src_pth")/gbm"
@@ -1041,7 +1049,15 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                                                                                         hook_msg "copy EGL vendors..."
                                                                                         try_mkdir "$dst_glvnd_dir"
                                                                                         try_cp -T "$sys_glvnd_dir" "$dst_glvnd_dir"
-                                                                                fi ;;
+                                                                                fi
+                                                                                sys_drirc_dir='/usr/share/drirc.d'
+                                                                                dst_drirc_dir="$dst_dir/share/drirc.d"
+                                                                                if [[ -d "$sys_drirc_dir" && ! -d "$dst_drirc_dir" ]]
+                                                                                    then
+                                                                                        hook_msg "copy dri config dir..."
+                                                                                        try_mkdir "$dst_drirc_dir"
+                                                                                        try_cp -T "$sys_drirc_dir" "$dst_drirc_dir"
+                                                                                fi;;
                                                                             */libvulkan.so*)
                                                                                 sys_vk_icd_dir='/usr/share/vulkan/icd.d'
                                                                                 dst_vk_icd_dir="$dst_dir/share/vulkan/icd.d"
