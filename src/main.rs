@@ -939,6 +939,7 @@ fn main() {
     let extra_library_path = get_env_var("SHARUN_EXTRA_LIBRARY_PATH");
     if !extra_library_path.is_empty() {
         library_path = format!("{}:{}", extra_library_path, library_path);
+        env::remove_var("SHARUN_EXTRA_LIBRARY_PATH");
     }
 
     library_path += ":/usr/lib:/lib";
@@ -957,6 +958,7 @@ fn main() {
     let fallback_library_path = get_env_var("SHARUN_FALLBACK_LIBRARY_PATH");
     if !fallback_library_path.is_empty() {
         library_path = format!("{}:{}", library_path, fallback_library_path);
+        env::remove_var("SHARUN_FALLBACK_LIBRARY_PATH");
     }
 
     for var_name in unset_envs {
