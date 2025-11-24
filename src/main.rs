@@ -872,7 +872,7 @@ fn main() {
                             "drirc.d" => {
                                 let sys_drirc_dir = Path::new("/usr/share/drirc.d");
                                 if !sys_drirc_dir.exists() {
-                                    env::set_var("DRIRC_CONFIGDIR", entry_path);
+                                    env::set_var("DRIRC_CONFIGDIR", entry_path)
                                 }
                             }
                             "X11" => {

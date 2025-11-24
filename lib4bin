@@ -1057,7 +1057,7 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                                                                                         hook_msg "copy dri config dir..."
                                                                                         try_mkdir "$dst_drirc_dir"
                                                                                         try_cp -T "$sys_drirc_dir" "$dst_drirc_dir"
-                                                                                fi;;
+                                                                                fi ;;
                                                                             */libvulkan.so*)
                                                                                 sys_vk_icd_dir='/usr/share/vulkan/icd.d'
                                                                                 dst_vk_icd_dir="$dst_dir/share/vulkan/icd.d"
