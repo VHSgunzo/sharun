@@ -1016,6 +1016,15 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                                                                                         try_mkdir "$dst_libthai_dir"
                                                                                         try_cp -T "$sys_libthai_dir" "$dst_libthai_dir"
                                                                                 fi ;;
+                                                                            */libasound.so*)
+                                                                                sys_alsaconf_dir='/usr/share/alsa'
+                                                                                dst_alsaconf_dir="$dst_dir/share/alsa"
+                                                                                if [[ -d "$sys_alsaconf_dir" && ! -d "$dst_alsaconf_dir" ]]
+                                                                                    then
+                                                                                        hook_msg "copy alsa config..."
+                                                                                        try_mkdir "$dst_alsaconf_dir"
+                                                                                        try_cp -T "$sys_alsaconf_dir" "$dst_alsaconf_dir"
+                                                                                fi ;;
                                                                             */libxkbcommon*.so*)
                                                                                 sys_xcb_dir="$(readlink -f /usr/share/X11/xkb)"
                                                                                 dst_xcb_dir="$dst_dir/share/X11/xkb"
