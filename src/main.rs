@@ -869,6 +869,12 @@ fn main() {
                                     }
                                 }
                             }
+                            "alsa" => {
+                                let alsa_conf = entry_path.join("alsa.conf");
+                                if !Path::new("/usr/share/alsa/alsa.conf").exists() && alsa_conf.exists() {
+                                    env::set_var("ALSA_CONFIG_PATH", alsa_conf)
+                                }
+                            }
                             "drirc.d" => {
                                 let sys_drirc_dir = Path::new("/usr/share/drirc.d");
                                 if !sys_drirc_dir.exists() {
