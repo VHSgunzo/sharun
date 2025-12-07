@@ -1180,6 +1180,15 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                                                                                         hook_msg "copy gconv-modules file..."
                                                                                         try_cp "$sys_gconv_modules_file" "$dst_gconv_modules_file"
                                                                                 fi ;;
+                                                                            */libc*.so*)
+                                                                                sys_c_locale_dir="$(dirname "$lib_src_pth")/locale/C.utf8"
+                                                                                dst_c_locale_dir="$(dirname "$lib_dst_pth")/locale/C.utf8"
+                                                                                if [[ -d "$sys_c_locale_dir" &&  ! -d "$dst_c_locale_dir" ]]
+                                                                                    then
+                                                                                        hook_msg "copy glibc C.utf8 locale"
+                                                                                        try_mkdir "$dst_c_locale_dir"
+                                                                                        try_cp -T "$sys_c_locale_dir" "$dst_c_locale_dir"
+                                                                                fi ;;
                                                                         esac
                                                                 fi
                                                                 LIBRARIES["$lib_dst_pth"]=1
