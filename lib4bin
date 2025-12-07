@@ -960,6 +960,15 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                                                                                         try_mkdir "$dst_pixbufl_dir"
                                                                                         try_cp "$sys_pixbufl_cache" "$dst_pixbufl_cache"
                                                                                         sed -i 's|/usr/lib/.*/loaders/||g' "$dst_pixbufl_cache"
+                                                                                fi
+                                                                                sys_mime_dir='/usr/share/mime'
+                                                                                dst_mime_dir="$dst_dir/share/mime"
+                                                                                if [[ -d "$sys_mime_dir" && ! -d "$dst_mime_dir" ]]
+                                                                                    then
+                                                                                        hook_msg "copy mime database..."
+                                                                                        try_mkdir "$dst_mime_dir"
+                                                                                        try_cp -T "$sys_mime_dir" "$dst_mime_dir"
+                                                                                        rm -rf "$dst_mime_dir"/packages
                                                                                 fi ;;
                                                                             */gtk-*/*/immodules/*.so)
                                                                                 sys_gtkimm_cache="${lib_src_pth/immodules\/*\.so/immodules.cache}"
