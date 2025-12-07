@@ -282,7 +282,10 @@ fn add_to_env<K: AsRef<OsStr>, V: AsRef<OsStr>>(key: K, val: V) {
     let old_val = get_env_var(key);
     if old_val.is_empty() {
         env::set_var(key, val)
-    } else if !old_val.contains(val) {
+    } else if old_val != val &&
+      !old_val.starts_with(&format!("{val}:")) &&
+      !old_val.ends_with(&format!(":{val}")) &&
+      !old_val.contains(&format!(":{val}:")) {
         env::set_var(key, format!("{val}:{old_val}"))
     }
 }
@@ -350,6 +353,20 @@ fn gen_library_path(library_path: &str, lib_path_file: &String) {
     }
 }
 
+fn collect_json_files(dir: &Path) -> Vec<PathBuf> {
+    let mut json_paths = Vec::new();
+    if dir.exists() {
+        if let Ok(entries) = dir.read_dir() {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.extension().is_some_and(|ext| ext == "json") &&
+                   path.exists() { json_paths.push(path) }
+            }
+        }
+    }
+    json_paths
+}
+
 fn print_usage() {
     println!("[ {} ]
 
@@ -373,6 +390,7 @@ fn print_usage() {
     SHARUN_ALLOW_SYS_VKICD=1       Enables breaking system vulkan/icd.d for vulkan loader
     SHARUN_ALLOW_LD_PRELOAD=1      Enables breaking LD_PRELOAD env variable
     SHARUN_ALLOW_QT_PLUGIN_PATH=1  Enables breaking QT_PLUGIN_PATH env variable
+    SHARUN_NO_NVIDIA_EGL_PRIME=1   Disables NVIDIA EGL prime logic
     SHARUN_PRINTENV=1              Print environment variables to stderr
     SHARUN_LDNAME=ld.so            Specifies the name of the interpreter
     SHARUN_EXTRA_LIBRARY_PATH      Extra library directories with highest priority
@@ -832,15 +850,34 @@ fn main() {
                         let name = entry.file_name();
                         match name.to_str().unwrap_or_default() {
                             "glvnd" => {
-                                if get_env_var("__EGL_VENDOR_LIBRARY_FILENAMES").is_empty() {
-                                    for xdg_data_dir in xdg_data_dirs.rsplit(":") {
-                                        let nvidia_json_path = Path::new(xdg_data_dir).join("glvnd/egl_vendor.d/10_nvidia.json");
-                                        if nvidia_json_path.exists() {
-                                            env::set_var("__EGL_VENDOR_LIBRARY_FILENAMES", &nvidia_json_path);
-                                            break
-                                        }
-                                    }
-                                }
+                                if get_env_var("SHARUN_NO_NVIDIA_EGL_PRIME") != "1" &&
+                                   Path::new("/sys/module/nvidia/version").exists() &&
+                                   get_env_var("__EGL_VENDOR_LIBRARY_FILENAMES").is_empty() {
+                                   let mut xdg_json_paths = Vec::new();
+                                   for xdg_data_dir in xdg_data_dirs.split(":") {
+                                       let egl_vendor = Path::new(xdg_data_dir).join("glvnd/egl_vendor.d");
+                                       let mut paths = collect_json_files(&egl_vendor);
+                                       xdg_json_paths.append(&mut paths)
+                                   }
+                                   let nvidia_json = xdg_json_paths.iter()
+                                       .find(|p| p.file_name().unwrap_or_default().to_string_lossy().contains("nvidia"));
+                                   if let Some(nvidia_path) = nvidia_json {
+                                       let mut all_paths = Vec::new();
+                                       all_paths.push(nvidia_path.clone());
+                                       for path in xdg_json_paths.iter() {
+                                           if !path.file_name().unwrap_or_default().to_string_lossy().contains("nvidia") {
+                                               all_paths.push(path.clone())
+                                           }
+                                       }
+                                       if !all_paths.is_empty() {
+                                           let paths_str = all_paths.iter()
+                                               .map(|p| p.to_string_lossy())
+                                               .collect::<Vec<_>>()
+                                               .join(":");
+                                           env::set_var("__EGL_VENDOR_LIBRARY_FILENAMES", &paths_str)
+                                       }
+                                   }
+                               }
                                 add_to_xdg_data_env(xdg_data_dirs,
                                     "__EGL_VENDOR_LIBRARY_DIRS", "glvnd/egl_vendor.d")
                             }

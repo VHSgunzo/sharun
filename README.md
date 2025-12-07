@@ -48,6 +48,7 @@ cp ./target/$(uname -m)-unknown-linux-musl/release/sharun .
     SHARUN_ALLOW_SYS_VKICD=1       Enables breaking system vulkan/icd.d for vulkan loader
     SHARUN_ALLOW_LD_PRELOAD=1      Enables breaking LD_PRELOAD env variable
     SHARUN_ALLOW_QT_PLUGIN_PATH=1  Enables breaking QT_PLUGIN_PATH env variable
+    SHARUN_NO_NVIDIA_EGL_PRIME=1   Disables NVIDIA EGL prime logic
     SHARUN_PRINTENV=1              Print environment variables to stderr
     SHARUN_LDNAME=ld.so            Specifies the name of the interpreter
     SHARUN_EXTRA_LIBRARY_PATH      Extra library directories with highest priority
