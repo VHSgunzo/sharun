@@ -1197,7 +1197,19 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                                                                                         hook_msg "copy glibc C.utf8 locale"
                                                                                         try_mkdir "$dst_c_locale_dir"
                                                                                         try_cp -T "$sys_c_locale_dir" "$dst_c_locale_dir"
-                                                                                fi ;;
+                                                                                fi
+                                                                                dst_en_locale_dir="$(dirname "$lib_dst_pth")/locale/en_US.utf8"
+                                                                                tmp_en_locale_dir="/tmp/lib/locale/en_US.utf8"
+                                                                                if [[ ! -d "$dst_en_locale_dir" ]] && is_exe_exist localedef; then
+                                                                                    mkdir -p "$tmp_en_locale_dir"
+                                                                                    cp "$(which_exe localedef)" /tmp/localedef
+                                                                                    sed -i 's|/usr/lib/locale|/tmp/lib/locale|g' /tmp/localedef
+                                                                                    if /tmp/localedef --no-archive -i en_US -f UTF-8 en_US.UTF-8; then
+                                                                                        hook_msg "copy glibc en_US.utf8 locale"
+                                                                                        try_mkdir "$dst_en_locale_dir"
+                                                                                        try_cp -T "$tmp_en_locale_dir" "$dst_en_locale_dir"
+                                                                                    fi
+                                                                                fi;;
                                                                         esac
                                                                 fi
                                                                 LIBRARIES["$lib_dst_pth"]=1
