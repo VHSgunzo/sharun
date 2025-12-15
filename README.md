@@ -204,6 +204,7 @@ This can be useful, for example, to use [pathmap](https://github.com/VHSgunzo/pa
 |`XLOCALEDIR` (if no /usr/share/X11/locale) | `${SHARUN_DIR}/share/X11/locale`|
 |`GSETTINGS_SCHEMA_DIR` | `${SHARUN_DIR}/share/glib-2.0/schemas`|
 |`TERMINFO` | `${SHARUN_DIR}/share/terminfo`|
+|`TEXTDOMAINDIR` | `${SHARUN_DIR}/share/locale`|
 |`MAGIC` | `${SHARUN_DIR}/share/file/misc/magic.mgc`|
 |`LIBTHAI_DICTDIR` | `${SHARUN_DIR}/share/libthai/thbrk.tri`|
 |||
