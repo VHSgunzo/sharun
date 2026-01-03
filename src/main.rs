@@ -738,7 +738,14 @@ fn main() {
                     add_to_env("LIBVA_DRIVERS_PATH", dir_path)
                 }
                 if dir == "gbm" {
-                    env::set_var("GBM_BACKENDS_PATH", dir_path)
+                    add_to_env("GBM_BACKENDS_PATH", "/run/opengl-driver/lib/gbm");
+                    add_to_env("GBM_BACKENDS_PATH", "/usr/lib/gbm");
+                    add_to_env("GBM_BACKENDS_PATH", "/usr/lib64/gbm");
+                    #[cfg(target_arch = "x86_64")]
+                    add_to_env("GBM_BACKENDS_PATH", "/usr/lib/x86_64-linux-gnu/gbm");
+                    #[cfg(target_arch = "aarch64")]
+                    add_to_env("GBM_BACKENDS_PATH", "/usr/lib/aarch64-linux-gnu/gbm");
+                    add_to_env("GBM_BACKENDS_PATH", dir_path)
                 }
                 if dir == "libheif" {
                     let plugins = &format!("{dir_path}/plugins");
