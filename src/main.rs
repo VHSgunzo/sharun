@@ -948,6 +948,9 @@ fn main() {
                             "terminfo" => {
                                 env::set_var("TERMINFO", entry_path)
                             }
+                            "locale" => {
+                                env::set_var("TEXTDOMAINDIR", entry_path)
+                            }
                             "file" => {
                                 let magic_file = &entry_path.join("misc/magic.mgc");
                                 if magic_file.exists() {
