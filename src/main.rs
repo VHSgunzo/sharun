@@ -353,6 +353,7 @@ fn gen_library_path(library_path: &str, lib_path_file: &String) {
     }
 }
 
+#[cfg(feature = "setenv")]
 fn collect_json_files(dir: &Path) -> Vec<PathBuf> {
     let mut json_paths = Vec::new();
     if dir.exists() {
