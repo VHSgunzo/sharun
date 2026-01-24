@@ -937,6 +937,11 @@ fn main() {
                                     env::set_var("XLOCALEDIR", xlocale)
                                 }
                             }
+                            "libdrm" => {
+                                add_to_env("AMDGPU_ASIC_ID_TABLE_PATHS", entry_path);
+                                add_to_env("AMDGPU_ASIC_ID_TABLE_PATHS", "/usr/share/libdrm");
+                                add_to_env("AMDGPU_ASIC_ID_TABLE_PATHS", "/usr/local/share/libdrm")
+                            }
                             "libthai" => {
                                 if entry_path.join("thbrk.tri").exists() {
                                     env::set_var("LIBTHAI_DICTDIR", entry_path)
