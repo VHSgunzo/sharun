@@ -838,9 +838,10 @@ fn main() {
         let share_dir = PathBuf::from(format!("{sharun_dir}/share"));
         if share_dir.exists() {
             if let Ok(dir) = share_dir.read_dir() {
-                add_to_env("XDG_DATA_DIRS", "/usr/local/share");
-                add_to_env("XDG_DATA_DIRS", "/usr/share");
+                add_to_env("XDG_DATA_DIRS", "/run/current-system/sw/share");
                 add_to_env("XDG_DATA_DIRS", "/run/opengl-driver/share");
+                add_to_env("XDG_DATA_DIRS", "/usr/share");
+                add_to_env("XDG_DATA_DIRS", "/usr/local/share");
                 add_to_env("XDG_DATA_DIRS", format!("{}/.local/share", get_env_var("HOME")));
                 add_to_env("XDG_DATA_DIRS", &share_dir);
                 let xdg_data_dirs = &get_env_var("XDG_DATA_DIRS");
@@ -1007,6 +1008,7 @@ fn main() {
         #[cfg(target_arch = "aarch64")]
         { library_path += ":/usr/lib/aarch64-linux-gnu" }
     }
+    library_path += ":/run/opengl-driver/lib:/run/current-system/sw/lib";
 
     let fallback_library_path = get_env_var("SHARUN_FALLBACK_LIBRARY_PATH");
     if !fallback_library_path.is_empty() {
