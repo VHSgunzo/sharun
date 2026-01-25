@@ -730,12 +730,16 @@ fn main() {
                 }
                 if dir == "dri" {
                     env::set_var("LIBGL_DRIVERS_PATH", dir_path);
-                    add_to_env("LIBVA_DRIVERS_PATH", "/usr/lib/dri");
-                    add_to_env("LIBVA_DRIVERS_PATH", "/usr/lib64/dri");
-                    #[cfg(target_arch = "x86_64")]
-                    add_to_env("LIBVA_DRIVERS_PATH", "/usr/lib/x86_64-linux-gnu/dri");
-                    #[cfg(target_arch = "aarch64")]
-                    add_to_env("LIBVA_DRIVERS_PATH", "/usr/lib/aarch64-linux-gnu/dri");
+                    if get_env_var("SHARUN_NO_NVIDIA_EGL_PRIME") != "1" &&
+                        Path::new("/sys/module/nvidia/version").exists() {
+                            add_to_env("LIBVA_DRIVERS_PATH", "/run/opengl-driver/lib/dri");
+                            add_to_env("LIBVA_DRIVERS_PATH", "/usr/lib/dri");
+                            add_to_env("LIBVA_DRIVERS_PATH", "/usr/lib64/dri");
+                            #[cfg(target_arch = "x86_64")]
+                            add_to_env("LIBVA_DRIVERS_PATH", "/usr/lib/x86_64-linux-gnu/dri");
+                            #[cfg(target_arch = "aarch64")]
+                            add_to_env("LIBVA_DRIVERS_PATH", "/usr/lib/aarch64-linux-gnu/dri");
+                    }
                     add_to_env("LIBVA_DRIVERS_PATH", dir_path)
                 }
                 if dir == "gbm" {
