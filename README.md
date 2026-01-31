@@ -210,6 +210,7 @@ This can be useful, for example, to use [pathmap](https://github.com/VHSgunzo/pa
 |||
 |---|---|
 |`FONTCONFIG_FILE` (if no /etc/fonts/fonts.conf) | `${SHARUN_DIR}/etc/fonts/fonts.conf`|
+|`SSL_CERT_FILE`, `CURL_CA_BUNDLE`, and `REQUESTS_CA_BUNDLE` (if no /etc/ssl/certs/ca-certificates.crt) | `/etc/pki/tls/cert.pem` or `/etc/pki/tls/cacert.pem` or `/etc/ssl/cert.pem` (if any is found) |
 |---|---|
 |`GIO_LAUNCH_DESKTOP` | `${SHARUN_DIR}/bin/gio-launch-desktop`|
 |`__EGL_VENDOR_LIBRARY_FILENAMES` | `/usr/share/glvnd/egl_vendor.d/10_nvidia.json` (if env not set)|
