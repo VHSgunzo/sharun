@@ -1027,6 +1027,35 @@ fn main() {
         env::remove_var("SHARUN_FALLBACK_LIBRARY_PATH");
     }
 
+    let system_ca = Path::new("/etc/ssl/certs/ca-certificates.crt");
+    if !system_ca.exists() {
+        let possible_certs = [
+            "/etc/pki/tls/cert.pem",
+            "/etc/pki/tls/cacert.pem",
+            "/etc/ssl/cert.pem",
+        ];
+        let mut found_cert: Option<&str> = None;
+        for &c in &possible_certs {
+            if Path::new(c).exists() {
+                found_cert = Some(c);
+                break;
+            }
+        }
+        if let Some(cert) = found_cert {
+            if get_env_var("REQUESTS_CA_BUNDLE").is_empty() {
+                env::set_var("REQUESTS_CA_BUNDLE", cert);
+            }
+            if get_env_var("CURL_CA_BUNDLE").is_empty() {
+                env::set_var("CURL_CA_BUNDLE", cert);
+            }
+            if get_env_var("SSL_CERT_FILE").is_empty() {
+                env::set_var("SSL_CERT_FILE", cert);
+            }
+        } else {
+            eprintln!("WARNING: Cannot find CA Certificates in '/etc'!");
+        }
+    }
+
     for var_name in unset_envs {
         env::remove_var(var_name)
     }
