@@ -193,6 +193,8 @@ This can be useful, for example, to use [pathmap](https://github.com/VHSgunzo/pa
 |`XTABLES_LIBDIR` | `${SHARUN_DIR}/shared/$LIB/xtables`|
 |`FOLKS_BACKEND_PATH` | `${SHARUN_DIR}/shared/$LIB/folks/*/backends`|
 |`LIBHEIF_PLUGIN_PATH` | `${SHARUN_DIR}/shared/$LIB/libheif/plugins` or `${SHARUN_DIR}/shared/$LIB/libheif`|
+|`IMLIB2_LOADER_PATH`|`${SHARUN_DIR}/shared/$LIB/imlib2/loaders`|
+|`IMLIB2_FILTER_PATH`|`${SHARUN_DIR}/shared/$LIB/imlib2/filters`|
 |||
 |---|---|
 |`XDG_DATA_DIRS` | `${SHARUN_DIR}/share`|
