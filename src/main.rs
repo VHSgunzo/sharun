@@ -1033,6 +1033,7 @@ fn main() {
             "/etc/pki/tls/cert.pem",
             "/etc/pki/tls/cacert.pem",
             "/etc/ssl/cert.pem",
+            "/var/lib/ca-certificates/ca-bundle.pem",
         ];
         let mut found_cert: Option<&str> = None;
         for &c in &possible_certs {
@@ -1052,7 +1053,7 @@ fn main() {
                 env::set_var("SSL_CERT_FILE", cert);
             }
         } else {
-            eprintln!("WARNING: Cannot find CA Certificates in '/etc'!");
+            eprintln!("WARNING: Cannot find CA Certificates in host!");
         }
     }
 
