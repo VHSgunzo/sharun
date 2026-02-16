@@ -1087,6 +1087,15 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                                                                                         try_cp -T "$sys_vk_icd_dir" "$dst_vk_icd_dir"
                                                                                         sed -i 's|/usr/lib||g;s|/.*-linux-gnu||g;s|"/|"|g' "$dst_vk_icd_dir"/*
                                                                                 fi ;;
+                                                                            */libdrm_amdgpu.so*)
+                                                                                sys_libdrm_dir='/usr/share/libdrm'
+                                                                                dst_libdrm_dir="$dst_dir/share/libdrm"
+                                                                                if [[ -d "$sys_libdrm_dir" && ! -d "$dst_libdrm_dir" ]]
+                                                                                    then
+                                                                                        hook_msg "copy libdrm amdgpu.ids dir..."
+                                                                                        try_mkdir "$dst_libdrm_dir"
+                                                                                        try_cp -T "$sys_libdrm_dir" "$dst_libdrm_dir"
+                                                                                fi ;;
                                                                             */libwebkit*gtk-*.so*)
                                                                                 webkit="$(grep -Eo 'webkit(2)?gtk-[0-9]*\.[0-9]*'<<<"$lib_src_name")"
                                                                                 dst_webkit_lib_dir="$(dirname "$lib_dst_pth")/$webkit"

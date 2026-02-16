@@ -207,6 +207,7 @@ This can be useful, for example, to use [pathmap](https://github.com/VHSgunzo/pa
 |`TEXTDOMAINDIR` | `${SHARUN_DIR}/share/locale`|
 |`MAGIC` | `${SHARUN_DIR}/share/file/misc/magic.mgc`|
 |`LIBTHAI_DICTDIR` | `${SHARUN_DIR}/share/libthai/thbrk.tri`|
+|`AMDGPU_ASIC_ID_TABLE_PATHS`|`${SHARUN_DIR}/share/libdrm`|
 |||
 |---|---|
 |`FONTCONFIG_FILE` (if no /etc/fonts/fonts.conf) | `${SHARUN_DIR}/etc/fonts/fonts.conf`|
