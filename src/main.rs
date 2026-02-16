@@ -1016,7 +1016,7 @@ fn main() {
             if let Some(found_cert) = possible_certs.iter().find(|&&path| Path::new(path).exists()) {
                 for var_name in ["REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE", "SSL_CERT_FILE"].iter() {
                     if env::var_os(var_name).is_none() {
-                        env::set_var(var_name, &found_cert);
+                        env::set_var(var_name, found_cert);
                     }
                 }
             } else {
