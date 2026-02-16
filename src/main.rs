@@ -1004,6 +1004,25 @@ fn main() {
                 }
             }
         }
+
+        if !Path::new("/etc/ssl/certs/ca-certificates.crt").exists() {
+            let possible_certs = [
+                "/etc/pki/tls/cert.pem",
+                "/etc/pki/tls/cacert.pem",
+                "/etc/ssl/cert.pem",
+                "/var/lib/ca-certificates/ca-bundle.pem",
+            ];
+
+            if let Some(found_cert) = possible_certs.iter().find(|&&path| Path::new(path).exists()) {
+                for var_name in ["REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE", "SSL_CERT_FILE"].iter() {
+                    if env::var_os(var_name).is_none() {
+                        env::set_var(var_name, &found_cert);
+                    }
+                }
+            } else {
+                eprintln!("WARNING: Cannot find CA Certificates in host!");
+            }
+        }
     }
 
     if !lib_path_data.is_empty() {
