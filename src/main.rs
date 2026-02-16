@@ -797,6 +797,16 @@ fn main() {
                         add_to_env("QT_PLUGIN_PATH", plugins)
                     }
                 }
+                if dir == "imlib2" {
+                    let loaders = &format!("{dir_path}/loaders");
+                    let filters = &format!("{dir_path}/filters");
+                    if Path::new(loaders).exists() {
+                        env::set_var("IMLIB2_LOADER_PATH", loaders)
+                    }
+                    if Path::new(filters).exists() {
+                        env::set_var("IMLIB2_FILTER_PATH", filters)
+                    }
+                }
                 if dir.starts_with("babl-") {
                     env::set_var("BABL_PATH", dir_path)
                 }
