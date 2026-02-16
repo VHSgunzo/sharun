@@ -985,6 +985,25 @@ fn main() {
                 }
             }
         }
+
+        if !Path::new("/etc/ssl/certs/ca-certificates.crt").exists() {
+            let possible_certs = [
+                "/etc/pki/tls/cert.pem",
+                "/etc/pki/tls/cacert.pem",
+                "/etc/ssl/cert.pem",
+                "/var/lib/ca-certificates/ca-bundle.pem",
+            ];
+
+            if let Some(found_cert) = possible_certs.iter().find(|&&path| Path::new(path).exists()) {
+                for var_name in ["REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE", "SSL_CERT_FILE"].iter() {
+                    if env::var_os(var_name).is_none() {
+                        env::set_var(var_name, &found_cert);
+                    }
+                }
+            } else {
+                eprintln!("WARNING: Cannot find CA Certificates in host!");
+            }
+        }
     }
 
     if !lib_path_data.is_empty() {
@@ -1025,36 +1044,6 @@ fn main() {
     if !fallback_library_path.is_empty() {
         library_path = format!("{}:{}", library_path, fallback_library_path);
         env::remove_var("SHARUN_FALLBACK_LIBRARY_PATH");
-    }
-
-    let system_ca = Path::new("/etc/ssl/certs/ca-certificates.crt");
-    if !system_ca.exists() {
-        let possible_certs = [
-            "/etc/pki/tls/cert.pem",
-            "/etc/pki/tls/cacert.pem",
-            "/etc/ssl/cert.pem",
-            "/var/lib/ca-certificates/ca-bundle.pem",
-        ];
-        let mut found_cert: Option<&str> = None;
-        for &c in &possible_certs {
-            if Path::new(c).exists() {
-                found_cert = Some(c);
-                break;
-            }
-        }
-        if let Some(cert) = found_cert {
-            if get_env_var("REQUESTS_CA_BUNDLE").is_empty() {
-                env::set_var("REQUESTS_CA_BUNDLE", cert);
-            }
-            if get_env_var("CURL_CA_BUNDLE").is_empty() {
-                env::set_var("CURL_CA_BUNDLE", cert);
-            }
-            if get_env_var("SSL_CERT_FILE").is_empty() {
-                env::set_var("SSL_CERT_FILE", cert);
-            }
-        } else {
-            eprintln!("WARNING: Cannot find CA Certificates in host!");
-        }
     }
 
     for var_name in unset_envs {
