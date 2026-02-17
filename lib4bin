@@ -1172,6 +1172,19 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                                                                                                 break
                                                                                         fi
                                                                                 done ;;
+                                                                            */libMagick*.so*)
+                                                                                dst_magick_dir="$dst_dir/etc/ImageMagick"
+                                                                                if [[ ! -d "$dst_magick_dir" ]]
+                                                                                    then
+                                                                                        try_mkdir "$dst_magick_dir"
+                                                                                        hook_msg "copy ImageMagick config files..."
+                                                                                        for f in /usr/share/ImageMagick*/* /etc/ImageMagick*/* "$(dirname "$lib_src_pth")"/ImageMagick*/config*/*.xml
+                                                                                            do
+                                                                                                if [[ -f "$f" ]]
+                                                                                                    then try_cp "$f" "$dst_magick_dir"
+                                                                                                fi
+                                                                                        done
+                                                                                fi ;;
                                                                             */libgirepository-*.so*)
                                                                                 girepository="$(grep -o 'girepository-.*\.so'<<<"$lib_src_name"|sed "s|\.so$||")"
                                                                                 sys_girepository="${lib_src_dirname_pth}/$girepository"
