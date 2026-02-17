@@ -45,6 +45,16 @@ WRAPPE_CLEANUP=${WRAPPE_CLEANUP:=1}
 MAX_INTERP_LEN=${MAX_INTERP_LEN:=256}
 PATCH_INTERPRETER=${PATCH_INTERPRETER:=0}
 
+export USER="${LOGNAME:-${USER:-${USERNAME:-yomama}}}"
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp}"
+export $(dbus-launch 2>/dev/null || echo 'NO_DBUS=1')
+if [[ "$EUID" = 0 ]]
+	then
+		export ELECTRON_DISABLE_SANDBOX=1
+		export WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS=1
+		export QTWEBENGINE_DISABLE_SANDBOX=1
+fi
+
 XDG_OPEN_WRAPPER='#!/bin/sh
 # xdg-open and gio-launch-desktop wrapper for sharun
 # unsets env variables that cause issues to child processes
