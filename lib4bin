@@ -1173,15 +1173,16 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                                                                                         fi
                                                                                 done ;;
                                                                             */libMagick*.so*)
-                                                                                dst_magick_dir="$dst_dir/etc/ImageMagick"
-                                                                                if [[ ! -d "$dst_magick_dir" ]]
+                                                                                src_magick_config_dir="$(echo /etc/ImageMagick*)"
+                                                                                dst_magick_config_dir="$dst_dir/etc/$(basename "$src_magick_config_dir")"
+                                                                                if [[ -d "$src_magick_config_dir" ]] && [[ ! -d "$dst_magick_config_dir" ]]
                                                                                     then
-                                                                                        try_mkdir "$dst_magick_dir"
+                                                                                        try_mkdir "$dst_magick_config_dir"
                                                                                         hook_msg "copy ImageMagick config files..."
-                                                                                        for f in /usr/share/ImageMagick*/* /etc/ImageMagick*/* "$(dirname "$lib_src_pth")"/ImageMagick*/config*/*.xml
+                                                                                        for f in /usr/share/ImageMagick*/* "$src_magick_config_dir"/* "$(dirname "$lib_src_pth")"/ImageMagick*/config*/*.xml
                                                                                             do
                                                                                                 if [[ -f "$f" ]]
-                                                                                                    then try_cp "$f" "$dst_magick_dir"
+                                                                                                    then try_cp "$f" "$dst_magick_config_dir"
                                                                                                 fi
                                                                                         done
                                                                                 fi ;;
