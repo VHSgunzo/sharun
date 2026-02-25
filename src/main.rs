@@ -391,6 +391,7 @@ fn print_usage() {
     SHARUN_ALLOW_SYS_VKICD=1       Enables breaking system vulkan/icd.d for vulkan loader
     SHARUN_ALLOW_LD_PRELOAD=1      Enables breaking LD_PRELOAD env variable
     SHARUN_ALLOW_QT_PLUGIN_PATH=1  Enables breaking QT_PLUGIN_PATH env variable
+    SHARUN_ALLOW_PYTHON_USERSITE=1 Enables breaking system python site packages
     SHARUN_NO_NVIDIA_EGL_PRIME=1   Disables NVIDIA EGL prime logic
     SHARUN_PRINTENV=1              Print environment variables to stderr
     SHARUN_LDNAME=ld.so            Specifies the name of the interpreter
@@ -660,6 +661,11 @@ fn main() {
         env::remove_var("QT_PLUGIN_PATH")
     }
     env::remove_var("SHARUN_ALLOW_QT_PLUGIN_PATH");
+
+    if get_env_var("SHARUN_ALLOW_PYTHON_USERSITE") != "1" {
+        env::set_var("PYTHONNOUSERSITE", "1")
+    }
+    env::remove_var("SHARUN_ALLOW_PYTHON_USERSITE");
 
     let interpreter = get_interpreter(&library_path).unwrap_or_else(|_|{
         eprintln!("Interpreter not found!");
