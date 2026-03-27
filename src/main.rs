@@ -124,6 +124,26 @@ fn which(executable: &str) -> Option<PathBuf> {
     None
 }
 
+fn find_shell() -> Option<PathBuf> {
+    let candidates = [
+        PathBuf::from("/bin/sh"),
+        PathBuf::from("/bin/bash"),
+        PathBuf::from("/usr/bin/sh"),
+        PathBuf::from("/usr/bin/bash"),
+    ];
+    for candidate in candidates {
+        if is_exe(&candidate) {
+            return Some(candidate);
+        }
+    }
+    for name in ["sh", "bash"] {
+        if let Some(path) = which(name) {
+            return Some(path);
+        }
+    }
+    None
+}
+
 fn is_script(path: &PathBuf) -> Result<bool> {
     let mut file = File::open(path)?;
     let mut buffer = [0; 2];
@@ -564,6 +584,23 @@ fn main() {
             exit(1)
         }
     } else if bin_name == "AppRun" {
+        let apprun_wrapped = Path::new(&sharun_dir).join("AppRun.sh");
+        if apprun_wrapped.exists() {
+            let shell = find_shell().unwrap_or_else(|| {
+                eprintln!(
+                    "Failed to find a shell for {}",
+                    apprun_wrapped.display()
+                );
+                exit(1)
+            });
+
+            let err = Command::new(shell)
+                .arg(apprun_wrapped)
+                .args(exec_args)
+                .exec();
+            eprintln!("Failed to run AppRun.sh: {err}");
+            exit(1);
+        }
         let appname_file = &format!("{sharun_dir}/.app");
         let mut appname: String = "".into();
         if !Path::new(appname_file).exists() {
