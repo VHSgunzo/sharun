@@ -1034,6 +1034,7 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                                                                                         hook_msg "copy alsa config..."
                                                                                         try_mkdir "$dst_alsaconf_dir"
                                                                                         try_cp -T "$sys_alsaconf_dir" "$dst_alsaconf_dir"
+                                                                                        [ -f "$dst_alsaconf_dir"/alsa.conf ] && sed -i -e 's|"/etc/alsa/conf.d"|"/etc/alsa/conf.d"\n\t\t\t{ @func concat strings [ { @func getenv vars [ SHARUN_DIR ] default "" } "/share/alsa/alsa.conf.d" ] }|' "$dst_alsaconf_dir"/alsa.conf
                                                                                 fi ;;
                                                                             */libxkbcommon*.so*)
                                                                                 sys_xcb_dir="$(readlink -f /usr/share/X11/xkb)"
