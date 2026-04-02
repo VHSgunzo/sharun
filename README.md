@@ -202,7 +202,7 @@ This can be useful, for example, to use [pathmap](https://github.com/VHSgunzo/pa
 |`__EGL_VENDOR_LIBRARY_DIRS` | `${SHARUN_DIR}/share/glvnd/egl_vendor.d`|
 |`ALSA_CONFIG_PATH` (if no /usr/share/alsa/alsa.conf) | `${SHARUN_DIR}/share/alsa/alsa.conf`|
 |`DRIRC_CONFIGDIR` (if no /usr/share/drirc.d) | `${SHARUN_DIR}/share/drirc.d`|
-|`XKB_CONFIG_ROOT` (if no /usr/share/X11/xkb) | `${SHARUN_DIR}/share/X11/xkb`|
+|`QT_XKB_CONFIG_ROOT` and `XKB_CONFIG_ROOT` (if no /usr/share/X11/xkb) | `${SHARUN_DIR}/share/X11/xkb`|
 |`XLOCALEDIR` (if no /usr/share/X11/locale) | `${SHARUN_DIR}/share/X11/locale`|
 |`GSETTINGS_SCHEMA_DIR` | `${SHARUN_DIR}/share/glib-2.0/schemas`|
 |`TERMINFO` | `${SHARUN_DIR}/share/terminfo`|

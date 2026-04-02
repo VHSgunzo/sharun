@@ -944,7 +944,8 @@ fn main() {
                             "X11" => {
                                 let xkb = &entry_path.join("xkb");
                                 if !Path::new("/usr/share/X11/xkb").exists() && xkb.exists() {
-                                    env::set_var("XKB_CONFIG_ROOT", xkb)
+                                    env::set_var("XKB_CONFIG_ROOT", xkb);
+                                    env::set_var("QT_XKB_CONFIG_ROOT", xkb)
                                 }
                                 let xlocale = &entry_path.join("locale");
                                 if !Path::new("/usr/share/X11/locale").exists() && xlocale.exists() {
