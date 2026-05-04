@@ -1010,6 +1010,7 @@ fn main() {
                 "/etc/pki/tls/cert.pem",
                 "/etc/pki/tls/cacert.pem",
                 "/etc/ssl/cert.pem",
+                "/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem",
                 "/var/lib/ca-certificates/ca-bundle.pem",
             ];
 
