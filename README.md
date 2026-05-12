@@ -236,6 +236,9 @@ This can be useful, for example, to use [pathmap](https://github.com/VHSgunzo/pa
 * [PPSSPP](https://github.com/hrydgard/ppsspp)
 * [Converseen](https://github.com/Faster3ck/Converseen)
 * [RSS Guard](https://github.com/martinrotter/rssguard)
+* [partydeck](https://github.com/partydeck/partydeck)
+* [OverBind](https://github.com/cjonas1999/OverBind)
+* [kanvas](https://gitgud.io/playervalley/kanvaslauncherpublic)
 
 ## References
 * [userland-execve](https://crates.io/crates/userland-execve)
