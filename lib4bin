@@ -1154,9 +1154,11 @@ if [[  ! -d "$WRAPPE_DIR" || "$WITH_PYTHON" == 1 ]]
                                                                                 if [ ! -f "$qt_conf" ]
                                                                                     then
                                                                                         hook_msg "create qt.conf..."
-                                                                                        qt="$(grep -Eo 'qt([0-9])?'<<<"$lib_src_pth")"
+                                                                                        qt_prefix="${lib_dst_dir_pth%/plugins/*}"
+                                                                                        qt_prefix="${qt_prefix%/plugins}"
+                                                                                        qt_prefix="$(get_relative_path "$sharun_bin_dir_pth" "$qt_prefix")"
                                                                                         echo -e \
-                                                                                        "[Paths]\nPrefix = ../shared/${lib_dir}/${qt}\nPlugins = plugins\nImports = qml\nQml2Imports = qml" \
+                                                                                        "[Paths]\nPrefix = ${qt_prefix}\nPlugins = plugins\nImports = qml\nQml2Imports = qml" \
                                                                                         > "$qt_conf"
                                                                                 fi ;;
                                                                             */libmagic.so*)
